@@ -1,7 +1,14 @@
 {
     ipv4,
     hostName,
-    authorizedKeys,
+    authorizedKeys ? [],
+    masterAddress ? null,
+    masterHostname ? "cluster-master",
+    extraPorts ? [],
+    systemVersion ? "23.11",
+    kubernetesRoles ? [ "node" ],
+    apiPort ? 6443,
+    enableDns ? true,
 }:
 {
     pkgs,
@@ -62,25 +69,32 @@
         '';
     };
 
-    system.stateVersion = "23.11";
+    system.stateVersion = systemVersion;
     services.openssh = {
         enable = true;
     };
 
     users.users.root = {
-        initialHashedPassword = lib.mkForce "$y$j9T$Hfsiv6QT49IcbL/6R5JbS1$nLorT5ACZCFjHxWkWH.C9lD3Ml.76u1eRUEZoaY/AtA";
+        hashedPassword = "$6$QuhEKr0ZX46NJqjv$s.euYXMmAmDmqP65EuTO7vYURZTH/wbdkZQ/TcuUvGD4SGM4z7SOn2V1YGop87OJ.Lg.3UJndI5hSBdlTzAzI.";
         openssh.authorizedKeys.keys = authorizedKeys;
     };
 
     networking = {
-        firewall.allowedTCPPorts = [ 22 ];
+        extraHosts = lib.concatMapStrings ({ addr, name }: "${addr} ${name}\n")
+        ([
+        {
+            addr = ipv4;
+            name = hostName;
+        }
+        ] ++ (if masterAddress != null then [{
+            addr = masterAddress;
+            name = masterHostname;
+        }] else []));
+        firewall = {
+            enable = false;
+            allowedTCPPorts = [ 22 ] ++ extraPorts;
+        };
         hostName = hostName;
-        /*interfaces.end0 = {
-            ipv4.addresses = [{
-                address = ipv4;
-                prefixLength = 28;
-            }];
-        };*/
   };
 
     boot.kernelParams = [
@@ -116,8 +130,42 @@
         kompose
         kubectl
         kubernetes
+
+        cfssl
+        openssl
+
+        vim
     ];
 
     # ETCD fix on ARM devices.
     services.etcd.extraConf.UNSUPPORTED_ARCH = "arm64";
+
+    services.kubernetes = 
+    let apiAddress = (if masterAddress != null then masterAddress else ipv4 );
+    in {
+        masterAddress = apiAddress;
+        roles = kubernetesRoles;
+
+        apiserverAddress = "https://${apiAddress}:${toString apiPort}";
+        apiserver = {
+            securePort = apiPort;
+            advertiseAddress = apiAddress;
+        };
+
+        easyCerts = true;
+
+        pki = {
+            cfsslAPIExtraSANs = (builtins.filter (v: v != null) [ masterHostname masterAddress ipv4 ]);
+        };
+
+        addons.dns = {
+            enable = enableDns;
+            coredns = {
+                finalImageTag = "1.10.1";
+                imageDigest = "sha256:a0ead06651cf580044aeb0a0feba63591858fb2e43ade8c9dea45a6a89ae7e5e";
+                imageName = "coredns/coredns";
+                sha256 = "0c4vdbklgjrzi6qc5020dvi8x3mayq4li09rrq2w0hcjdljj0yf9";
+            };
+        };
+    };
 }
