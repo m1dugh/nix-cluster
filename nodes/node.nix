@@ -142,15 +142,20 @@
 
     services.kubernetes = 
     let apiAddress = (if masterAddress != null then masterAddress else ipv4 );
+    api = "https://${apiAddress}:${toString apiPort}";
+    isMaster = builtins.any (role: role == "master") kubernetesRoles;
+    isNode = builtins.any (role: role == "node") kubernetesRoles;
     in {
         masterAddress = apiAddress;
         roles = kubernetesRoles;
 
-        apiserverAddress = "https://${apiAddress}:${toString apiPort}";
-        apiserver = {
+        apiserverAddress = api;
+        apiserver = lib.mkIf isMaster {
             securePort = apiPort;
             advertiseAddress = apiAddress;
         };
+
+        kubelet.kubeconfig.server = lib.mkIf isNode api;
 
         easyCerts = true;
 
