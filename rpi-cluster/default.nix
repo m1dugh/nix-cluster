@@ -176,15 +176,23 @@ in {
                 generic-extlinux-compatible.enable = true;
             };
 
-# Adds driver for raspi 4 components
-            boot.initrd.availableKernelModules = [
-                "vc4"
-                "bcm2835_dma"
-                "i2c_bcm2835"
-                "sun4i_drm"
-                "sun8i_drm_hdmi"
-                "sun8i_mixer"
-            ];
+            services.rpcbind.enable = true;
+
+            boot.initrd = {
+                kernelModules = [ "nfs" ];
+                supportedFilesystems = [ "nfs" ];
+
+                # Adds driver for raspi 4 components
+                availableKernelModules = [
+                    "vc4"
+                    "bcm2835_dma"
+                    "i2c_bcm2835"
+                    "sun4i_drm"
+                    "sun8i_drm_hdmi"
+                    "sun8i_mixer"
+                ];
+            };
+
 
 # Required kubernetes packages
             environment.systemPackages = with pkgs; [
@@ -196,6 +204,8 @@ in {
                 openssl
 
                 vim
+
+                nfs-utils
             ];
 
         }

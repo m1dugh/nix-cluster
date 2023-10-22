@@ -31,6 +31,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     enable = true;
                     network = {
                         inherit address authorizedKeys hostname;
+                        extraPorts = [ 2049 ];
                     };
 
                     kubernetesConfig.roles = ["master" "node"];
@@ -40,6 +41,17 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     etcd.port = 2379;
                 };
 
+                fileSystems."/nfs" = {
+                    device = "/dev/sda";
+                    options = [ "bind" ];
+                };
+
+                services.nfs.server = {
+                    enable = true;
+                    exports = ''
+                        /nfs 192.168.2.0/24(insecure,rw,sync,no_subtree_check,fsid=0)
+                    '';
+                };
 
             };
             cluster-node-1 = 
