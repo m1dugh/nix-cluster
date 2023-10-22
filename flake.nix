@@ -28,6 +28,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     ./rpi-cluster
                 ];
                 services.rpi-cluster = {
+                    enable = true;
                     network = {
                         inherit address authorizedKeys hostname;
                     };
@@ -38,6 +39,8 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     dns.enable = true;
                     etcd.port = 2379;
                 };
+
+
             };
             cluster-node-1 = 
                 let address = "192.168.2.15";
@@ -49,6 +52,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 ];
                 deployment.targetHost = address;
                 services.rpi-cluster = {
+                    enable = true;
                     network = {
                         inherit address hostname authorizedKeys;
                     };

@@ -38,7 +38,7 @@ let calculateDefaultGateway = address: netmask:
 
         extraPorts = mkOption {
             description = "Additional ports to open on the firewall";
-            type = type.listOf types.int;
+            type = types.listOf types.int;
 
             default = [];
         };
@@ -100,13 +100,14 @@ in {
         <nixpkgs/nixos/modules/installer/sd-card/sd-image.nix>
     ];
     options.services.rpi-cluster = {
+        enable = mkEnableOption "rpi-cluster";
         network = mkNetworkSettings;
         kubernetesConfig = mkKubernetesConfig;
         dns = mkDnsConfig;
         etcd = mkEtcdConfig;
 
     };
-    config = mkMerge [
+    config = mkMerge ([
         {
             sdImage = {
                 populateFirmwareCommands = let configTxt = pkgs.writeText "config.txt" ''
@@ -197,15 +198,21 @@ in {
                 vim
             ];
 
-# ETCD fix on ARM devices.
-            services.etcd.extraConf.UNSUPPORTED_ARCH = "arm64";
         }
-        {
+        (mkIf cfg.enable {
             networking.firewall = {
                 enable = false;
-                allowedTCPPorts = [ 22 ] ++ cfg.network.extraPorts;
+                allowedTCPPorts = [ 22 ] ++
+                (if ismaster then [
+                    cfg.etcd.port
+                    cfg.kubernetesConfig.api.port
+                    8888 #flannel port
+                ] else []) ++
+                cfg.network.extraPorts;
             };
 
+# ETCD fix on ARM devices.
+            services.etcd.extraConf.UNSUPPORTED_ARCH = "arm64";
             networking.hostName = cfg.network.hostname;
 
             networking.extraHosts =
@@ -234,8 +241,8 @@ in {
                     };
                 };
             };
-        }
-        (mkIf (elem "master" cfg.kubernetesConfig.roles) {
+        })
+        (mkIf (cfg.enable && ismaster) {
             services.kubernetes.apiserver = 
             let inherit (cfg.kubernetesConfig) api;
             in {
@@ -252,8 +259,8 @@ in {
             };
         })
 
-        (mkIf (elem "node" cfg.kubernetesConfig.roles) {
+        (mkIf (cfg.enable && (elem "node" cfg.kubernetesConfig.roles)) {
             services.kubernetes.kubelet.kubeconfig.server = apiUrl;
         })
-    ];
+    ]);
 }
