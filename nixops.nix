@@ -9,26 +9,47 @@ in {
     };
     cluster-master =
     let address = masterAddress;
-    name = "cluster-master";
+    hostname = "cluster-master";
     in { config, pkgs, ...}:
     {
+        nixpkgs.localSystem.system = "aarch64-linux";
         deployment.targetHost = address;
-        imports = [(import ./nodes/master.nix {
-            inherit address authorizedKeys;
-            hostName = name;
-        })];
+        imports = [
+            ./rpi-cluster
+        ];
+        services.rpi-cluster = {
+            network = {
+                inherit address authorizedKeys hostname;
+            };
+
+            kubernetesConfig.roles = ["master" "node"];
+            kubernetesConfig.api.port = 6443;
+
+            dns.enable = true;
+            etcd.port = 2379;
+        };
     };
     cluster-node-1 = 
     let address = "192.168.2.15";
-    name = "cluster-node-1";
+    hostname = "cluster-node-1";
     in 
     { ... }:
     {
+        nixpkgs.localSystem.system = "aarch64-linux";
+        imports = [
+            ./rpi-cluster
+        ];
         deployment.targetHost = address;
-        imports = [(import ./nodes/node.nix {
-            inherit authorizedKeys masterAddress;
-            ipv4 = address;
-            hostName = name;
-        })];
+        services.rpi-cluster = {
+            network = {
+                inherit address hostname authorizedKeys;
+            };
+
+            kubernetesConfig.api = {
+                inherit masterAddress;
+            };
+
+            dns.enable = true;
+        };
     };
 }
