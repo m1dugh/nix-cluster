@@ -1,5 +1,6 @@
 {
     config,
+    options,
     pkgs,
     lib,
     ...
@@ -10,9 +11,13 @@ let calculateDefaultGateway = address: netmask:
     gatewayParts = (lists.sublist 0 3 addrParts) ++ lists.singleton "1";
     in strings.concatStringsSep "." gatewayParts;
 
+    inherit (import ./lib.nix {
+        inherit pkgs lib;
+    }) hostType;
     ismaster = elem "master" cfg.kubernetesConfig.roles;
     isnode = elem "node" cfg.kubernetesConfig.roles;
     cfg = config.services.rpi-cluster;
+    opts = options.services.rpi-cluster;
     mkNetworkSettings = {
         address = mkOption {
             description = "ipv4 address of node";
@@ -102,6 +107,16 @@ let calculateDefaultGateway = address: netmask:
             default = false;
         };
     };
+
+    mkForwardConfig = {
+        enable = mkEnableOption "service forwarding";
+
+        hosts = mkOption {
+            type = hostType;
+            default = {};
+        };
+    };
+    forEachHost = func: builtins.mapAttrs func cfg.forward-proxy.hosts;
 in {
     imports = [
         <nixpkgs/nixos/modules/installer/sd-card/sd-image.nix>
@@ -112,9 +127,22 @@ in {
         kubernetesConfig = mkKubernetesConfig;
         dns = mkDnsConfig;
         etcd = mkEtcdConfig;
-
+        forward-proxy = mkForwardConfig;
     };
     config = mkMerge ([
+        (mkIf cfg.forward-proxy.enable {
+            services.nginx = {
+                recommendedProxySettings = true;
+                enable = true;
+
+                virtualHosts = forEachHost (host: hostConfig: {
+                    forceSSL = hostConfig.forceSsl;
+                    locations."/" = {
+                        proxyPass = hostConfig.proxyUrl;
+                    };
+                });
+            };
+        })
         {
             sdImage = {
                 populateFirmwareCommands = let configTxt = pkgs.writeText "config.txt" ''
@@ -229,7 +257,11 @@ in {
                 ] else []) ++
                 (if isnode then [
                     10250 # kubelet api
-                ] else []);
+                ] else []) ++
+                (lists.optionals cfg.forward-proxy.enable [
+                    80
+                    443
+                ]);
             };
 
 # ETCD fix on ARM devices.

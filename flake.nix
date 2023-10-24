@@ -39,6 +39,14 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         ];
                     };
 
+                    forward-proxy = {
+                        enable = true;
+                        hosts."grafana.cluster.local" = {
+                            forceSsl = false;
+                            proxyUrl = "http://${masterAddress}:30792";
+                        };
+                    };
+
                     kubernetesConfig.roles = ["master" "node"];
                     kubernetesConfig.api.port = 6443;
 
