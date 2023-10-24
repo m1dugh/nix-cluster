@@ -11,6 +11,7 @@ let calculateDefaultGateway = address: netmask:
     in strings.concatStringsSep "." gatewayParts;
 
     ismaster = elem "master" cfg.kubernetesConfig.roles;
+    isnode = elem "node" cfg.kubernetesConfig.roles;
     cfg = config.services.rpi-cluster;
     mkNetworkSettings = {
         address = mkOption {
@@ -41,6 +42,12 @@ let calculateDefaultGateway = address: netmask:
             type = types.listOf types.int;
 
             default = [];
+        };
+
+        enableFirewall = mkOption {
+            description = "Whether to enable the firewall";
+            default = true;
+            type = types.bool;
         };
 
         authorizedKeys = mkOption {
@@ -176,8 +183,6 @@ in {
                 generic-extlinux-compatible.enable = true;
             };
 
-            services.rpcbind.enable = true;
-
             boot.initrd = {
                 kernelModules = [ "nfs" ];
                 supportedFilesystems = [ "nfs" ];
@@ -210,15 +215,21 @@ in {
 
         }
         (mkIf cfg.enable {
+            networking.nftables.enable = true;
             networking.firewall = {
-                enable = false;
-                allowedTCPPorts = [ 22 ] ++
+                enable = cfg.network.enableFirewall;
+                allowedTCPPorts =
+                cfg.network.extraPorts ++
                 (if ismaster then [
                     cfg.etcd.port
                     cfg.kubernetesConfig.api.port
-                    8888 #flannel port
+                    10259 # kube scheduler
+                    10257 # kube-controller-manager
+                    10250 # kubelet api
                 ] else []) ++
-                cfg.network.extraPorts;
+                (if isnode then [
+                    10250 # kubelet api
+                ] else []);
             };
 
 # ETCD fix on ARM devices.

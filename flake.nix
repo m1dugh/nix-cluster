@@ -10,7 +10,9 @@
 let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu34+kDA8+FeyFQ6xoQgd0EBGXpJfiYiXlYU3B9Wmfu88YP4UqQka+WgQ/bncY8Ro22TPGi1qoFCp5W7zlmuBc1B462qFgtOF8k9SyHBzg4t1td4VS/PYp4h+K5xdQ+Vj3ZP+wdwlRxD+uABnjEgU34OuEn53foLLPGgEVrOehv0xU/DcBtdj1x/zCn9JnVExNGy2K5WTlOAmHDFCUzFU3BuDAa21HMFgbkCjDMmReUoQvyW1YqmjACjHJukV1v7l40GcFHNf4I/ggDFlABmxL8MCQoTxBfDTf1yPI9BJ6uPzu0Kp36JnC27NfF5UQw9rnYa5OHv+s3TW3QrRP52GshGU7EQjVke2/tGUDy74Rr1vtWIsFTTQ93Nx79rS/Jf1ad2dPCd0U2wAveYix7CxngfOKuWmPcNTEP6YOx+FmVA2/Gk/ipSBqRuquKVgfMhayfTBLNVCJpkog6rH1qXOK6f6ytiK8yrz1HV4KHl/yF/MiF9s= midugh@midugh-arch" ];
     masterAddress = "192.168.2.5";
     in {
-        nixopsConfigurations.default = {
+        nixopsConfigurations.default =
+        let inherit (nixpkgs) lib;
+        in {
             inherit nixpkgs;
             network = {
                 storage.legacy = {
@@ -30,8 +32,11 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 services.rpi-cluster = {
                     enable = true;
                     network = {
+                        enableFirewall = true;
                         inherit address authorizedKeys hostname;
-                        extraPorts = [ 2049 ];
+                        extraPorts = [
+                            2049 # NFS Server
+                        ];
                     };
 
                     kubernetesConfig.roles = ["master" "node"];
@@ -49,10 +54,14 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 services.nfs.server = {
                     enable = true;
                     exports = ''
-                        /nfs 192.168.2.0/24(insecure,rw,sync,no_subtree_check,fsid=0)
+                        /nfs ${masterAddress}/24(rw,no_subtree_check,fsid=0)
+                        /nfs/promdata ${masterAddress}/24(rw,nohide,insecure,no_subtree_check)
+                    '';
+                    extraNfsdConfig = ''
+                    vers3=no
                     '';
                 };
-
+                services.rpcbind.enable = lib.mkForce false;
             };
             cluster-node-1 = 
                 let address = "192.168.2.15";
@@ -67,6 +76,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     enable = true;
                     network = {
                         inherit address hostname authorizedKeys;
+                        enableFirewall = true;
                     };
 
                     kubernetesConfig.api = {
