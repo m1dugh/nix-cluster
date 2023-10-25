@@ -20,6 +20,9 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             network = {
                 inherit address hostname authorizedKeys;
                 enableFirewall = true;
+                extraPorts = [
+                    9100 # Prometheus Node Exporter
+                ];
             };
 
             kubernetesConfig.api = {
@@ -56,6 +59,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         inherit address authorizedKeys hostname;
                         extraPorts = [
                             2049 # NFS Server
+                            9100 # Prometheus Node Exporter
                         ];
                     };
 
