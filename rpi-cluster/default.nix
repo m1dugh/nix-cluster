@@ -251,6 +251,7 @@ in {
                 (if ismaster then [
                     cfg.etcd.port
                     cfg.kubernetesConfig.api.port
+                    8888 # flannel port
                     10259 # kube scheduler
                     10257 # kube-controller-manager
                     10250 # kubelet api
@@ -299,6 +300,7 @@ in {
             services.kubernetes.apiserver = 
             let inherit (cfg.kubernetesConfig) api;
             in {
+                enable = true;
                 securePort = api.port;
                 advertiseAddress = cfg.network.address;
             };
@@ -312,7 +314,7 @@ in {
             };
         })
 
-        (mkIf (cfg.enable && (elem "node" cfg.kubernetesConfig.roles)) {
+        (mkIf (cfg.enable && (isnode)) {
             services.kubernetes.kubelet.kubeconfig.server = apiUrl;
         })
     ]);
