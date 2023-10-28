@@ -49,7 +49,7 @@ in {
             };
             networking.wireguard.interfaces = forEachInterface (interface: ifcfg: 
             let natCommand = 
-                let commands = builtins.map (ifName: "-s ${ifName}") internalIfNames;
+                let commands = builtins.map (ip: "-s ${ip}") ifcfg.ips;
                 in builtins.concatStringsSep " " commands;
             in {
                 postSetup = strings.optionalString cfg.isServer ''
@@ -62,10 +62,6 @@ in {
         })
         {
 
-            environment.systemPackages = with pkgs; [
-                wireguard-tools
-            ];
-
             networking.firewall.allowedUDPPorts = [
                 cfg.listenPort
             ];
@@ -74,12 +70,11 @@ in {
             let mapPeers = func: builtins.attrValues (builtins.mapAttrs func ifcfg.peers);
             in {
                 inherit (ifcfg) ips privateKeyFile;
-
                 listenPort = cfg.listenPort;
-
-                peers = mapPeers (name: peercfg: {
+                peers = mapPeers (name: peerCfg: {
                     inherit name;
-                    inherit (peerfcg) publicKey allowedIps;
+                    inherit (peerCfg) allowedIPs publicKey endpoint;
+                    persistentKeepalive = 25;
                 });
             });
         }

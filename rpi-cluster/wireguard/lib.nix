@@ -16,9 +16,15 @@ with lib; rec {
                 type = types.str;
             };
 
-            allowedIps = mkOption {
+            allowedIPs = mkOption {
                 description = "The list of allowed IPs for this peer";
                 type = types.listOf types.str;
+            };
+
+            endpoint = mkOption {
+                description = "The endpoint to of the server";
+                type = types.nullOr types.str;
+                default = null;
             };
         };
     }));
