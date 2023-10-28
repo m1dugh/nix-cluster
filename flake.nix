@@ -12,7 +12,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
     createKubeNode = hostname: address: {
         nixpkgs.localSystem.system = "aarch64-linux";
         imports = [
-            ./rpi-cluster
+            ./rpi-cluster/modules-list.nix
         ];
         deployment.targetHost = address;
         services.rpi-cluster = {
@@ -50,8 +50,17 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 nixpkgs.localSystem.system = "aarch64-linux";
                 deployment.targetHost = address;
                 imports = [
-                    ./rpi-cluster
+                    ./rpi-cluster/modules-list.nix
                 ];
+                services.rpi-wireguard = {
+                    enable = true;
+                    isServer = true;
+                    externalInterface = "end0";
+                    internalInterfaces.wg0 = {
+                        ips = ["${masterAddress}/24"];
+                        privateKeyFile = "/root/wireguard-keys/private";
+                    };
+                };
                 services.rpi-cluster = {
                     enable = true;
                     network = {
@@ -72,7 +81,10 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     };
 
                     kubernetesConfig.roles = ["master" "node"];
-                    kubernetesConfig.api.port = 6443;
+                    kubernetesConfig.api = {
+                        allowPrivileged = true;
+                        port = 6443;
+                    };
 
                     dns.enable = true;
                     etcd.port = 2379;

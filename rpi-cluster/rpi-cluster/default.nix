@@ -1,6 +1,5 @@
 {
     config,
-    options,
     pkgs,
     lib,
     ...
@@ -17,7 +16,6 @@ let calculateDefaultGateway = address: netmask:
     ismaster = elem "master" cfg.kubernetesConfig.roles;
     isnode = elem "node" cfg.kubernetesConfig.roles;
     cfg = config.services.rpi-cluster;
-    opts = options.services.rpi-cluster;
     mkNetworkSettings = {
         address = mkOption {
             description = "ipv4 address of node";
@@ -82,6 +80,12 @@ let calculateDefaultGateway = address: netmask:
                 description = "The port of the kubernetes api on the master";
                 type = types.int;
                 default = 6443;
+            };
+
+            allowPrivileged = mkOption {
+                description = "Whether to allow privileged containers on the cluster";
+                type = types.bool;
+                default = false;
             };
 
             masterAddress = mkOption {
@@ -243,7 +247,6 @@ in {
 
         }
         (mkIf cfg.enable {
-            networking.nftables.enable = true;
             networking.firewall = {
                 enable = cfg.network.enableFirewall;
                 allowedTCPPorts =
@@ -300,6 +303,7 @@ in {
             services.kubernetes.apiserver = 
             let inherit (cfg.kubernetesConfig) api;
             in {
+                inherit (api) allowPrivileged;
                 enable = true;
                 securePort = api.port;
                 advertiseAddress = cfg.network.address;
