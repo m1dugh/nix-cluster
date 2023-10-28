@@ -142,8 +142,9 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 services.nfs.server = {
                     enable = true;
                     exports = ''
-                        /nfs ${masterAddress}/24(rw,no_subtree_check,fsid=0)
-                        /nfs/promdata ${masterAddress}/24(rw,nohide,insecure,no_subtree_check)
+                        /nfs ${subnet}(rw,no_subtree_check,fsid=0)
+                        /nfs/promdata ${subnet}(rw,nohide,insecure,no_subtree_check)
+                        /nfs/grafana ${subnet}(rw,nohide,insecure,no_subtree_check)
                     '';
                     extraNfsdConfig = ''
                     vers3=no
