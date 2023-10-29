@@ -38,7 +38,7 @@ with lib; rec {
                 type = types.bool;
             };
 
-            ips = mkOption {
+            address = mkOption {
                 description = "The default ips within the vpn";
                 default = [];
                 type = types.listOf types.str;

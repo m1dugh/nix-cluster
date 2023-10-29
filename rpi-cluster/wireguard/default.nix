@@ -36,6 +36,14 @@ in {
             default = 51820;
             type = types.int;
         };
+
+        dns = {
+            enable = mkEnableOption "DNS in wireguard";
+            addresses = mkOption {
+                description = "The addresses of the dns server if client, the DNS servers to query if server";
+                type = types.listOf types.str;
+            };
+        };
     };
 
     config = mkIf cfg.enable (
@@ -47,32 +55,46 @@ in {
                 enable = true;
                 internalInterfaces = internalIfNames;
             };
-            networking.wireguard.interfaces = forEachInterface (interface: ifcfg: 
+            networking.wg-quick.interfaces = forEachInterface (interface: ifcfg: 
             let natCommand = 
-                let commands = builtins.map (ip: "-s ${ip}") ifcfg.ips;
+                let commands = builtins.map (ip: "-s ${ip}") ifcfg.address;
                 in builtins.concatStringsSep " " commands;
             in {
-                postSetup = strings.optionalString cfg.isServer ''
-                    ${pkgs.iptables}/bin/iptables -t nat -A POSTROUTING ${natCommand} -o ${cfg.externalInterface} -j MASQUERADE;
+                postUp = strings.optionalString cfg.isServer ''
+                    ${pkgs.iptables}/bin/iptables -A FORWARD -i ${cfg.externalInterface} -j ACCEPT
+                    ${pkgs.iptables}/bin/iptables -t nat -A POSTROUTING ${natCommand} -o ${cfg.externalInterface} -j MASQUERADE
                 '';
-                postShutdown = strings.optionalString cfg.isServer ''
-                    ${pkgs.iptables}/bin/iptables -t nat -D POSTROUTING ${natCommand} -o ${cfg.externalInterface} -j MASQUERADE;
+                preDown = strings.optionalString cfg.isServer ''
+                    ${pkgs.iptables}/bin/iptables -D FORWARD -i ${cfg.externalInterface} -j ACCEPT
+                    ${pkgs.iptables}/bin/iptables -t nat -D POSTROUTING ${natCommand} -o ${cfg.externalInterface} -j MASQUERADE
                 '';
+            });
+
+            services.dnsmasq = mkIf cfg.dns.enable {
+                enable = true;
+                settings.interface = cfg.externalInterface;
+                settings.server = cfg.dns.addresses;
+            };
+        })
+        (mkIf (! cfg.isServer) {
+            networking.wg-quick.interfaces = forEachInterface (interface: ifcfg: {
+                dns = cfg.dns.addresses;
             });
         })
         {
 
             networking.firewall.allowedUDPPorts = [
                 cfg.listenPort
-            ];
+            ] ++ (lists.optional (cfg.isServer && cfg.dns.enable) 53);
 
-            networking.wireguard.interfaces = forEachInterface (interface: ifcfg: 
+            networking.firewall.allowedTCPPorts = lists.optional (cfg.isServer && cfg.dns.enable) 53;
+
+            networking.wg-quick.interfaces = forEachInterface (interface: ifcfg: 
             let mapPeers = func: builtins.attrValues (builtins.mapAttrs func ifcfg.peers);
             in {
-                inherit (ifcfg) ips privateKeyFile;
+                inherit (ifcfg) address privateKeyFile;
                 listenPort = cfg.listenPort;
                 peers = mapPeers (name: peerCfg: {
-                    inherit name;
                     inherit (peerCfg) allowedIPs publicKey endpoint;
                     persistentKeepalive = 25;
                 });
