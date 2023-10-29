@@ -43,6 +43,16 @@ in {
                 description = "The addresses of the dns server if client, the DNS servers to query if server";
                 type = types.listOf types.str;
             };
+
+            customEntries = mkOption {
+                description = "Custom dns entries";
+                example = {
+                    "my-local-address" = "192.168.1.42";
+                };
+
+                default = {};
+                type = types.attrsOf types.str;
+            };
         };
     };
 
@@ -72,7 +82,9 @@ in {
 
             services.dnsmasq = mkIf cfg.dns.enable {
                 enable = true;
-                settings.interface = cfg.externalInterface;
+                settings = {
+                    cache-size = 500;
+                };
                 settings.server = cfg.dns.addresses;
             };
         })
@@ -80,6 +92,9 @@ in {
             networking.wg-quick.interfaces = forEachInterface (interface: ifcfg: {
                 dns = cfg.dns.addresses;
             });
+        })
+        (mkIf ((! cfg.isServer) && cfg.dns.enable) {
+            networking.nameservers = cfg.dns.addresses;
         })
         {
 
