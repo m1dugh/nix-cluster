@@ -13,14 +13,70 @@ let cfg = config.midugh.rpi-config;
             default = [];
         };
     };
-in {
-    options.midugh.rpi-config = {
-        enable = mkEnableOption "raspberry pi default config";
+    mkNetworkOptions = {
+
+        enable = mkOption {
+            description = "Whether to enable static ip on the host";
+            default = true;
+            type = types.bool;
+        };
+
+        interface = mkOption {
+            type = types.str;
+            default = "eth0";
+            description = "The name of the interface to configure";
+        };
+
         hostName = mkOption {
-            description = "The hostname for the machine";
+            description = "The name on the network";
             type = types.nullOr types.str;
             default = null;
         };
+
+        ipv4 = {
+            defaultGateway = mkOption {
+                description = "The IPv4 of the default gateway for this interface";
+                type = types.nullOr types.str;
+                default = null;
+            };
+
+            address = mkOption {
+                description = "The IPv4 static address to bind to this host";
+                type = types.nullOr types.str;
+                default = null;
+            };
+
+            prefixLength = mkOption {
+                description = "The IPv4 subnet prefix length";
+                type = types.int;
+                default = 24;
+            };
+        };
+
+        ipv6 = {
+            defaultGateway = mkOption {
+                description = "The IPv6 of the default gateway for this interface";
+                type = types.nullOr types.str;
+                default = null;
+            };
+
+            address = mkOption {
+                description = "The IPv6 static address to bind to this host";
+                type = types.nullOr types.str;
+                default = null;
+            };
+
+            prefixLength = mkOption {
+                description = "The IPv6 subnet prefix length";
+                type = types.int;
+                default = 64;
+            };
+        };
+    };
+in {
+    options.midugh.rpi-config = {
+        enable = mkEnableOption "raspberry pi default config";
+        network = mkNetworkOptions;
         hashedPassword = mkOption {
             description = "The hashed password for the root user";
             type = types.str;
@@ -109,6 +165,28 @@ in {
             vim
         ];
 
-        networking.hostName = cfg.hostName;
-    }]);
+    }(mkIf cfg.network.enable {
+        networking.hostName = cfg.network.hostName;
+        networking.useDHCP = false;
+
+        networking.interfaces.${cfg.network.interface} = {
+            useDHCP = false;
+            ipv4.addresses = lists.optional (cfg.network.ipv4.address != null) {
+                inherit (cfg.network.ipv4) address prefixLength;
+            };
+            ipv6.addresses = lists.optional (cfg.network.ipv6.address != null) {
+                inherit (cfg.network.ipv6) address prefixLength;
+            };
+        };
+
+        networking.defaultGateway = mkIf (cfg.network.ipv4.defaultGateway != null) {
+            address = cfg.network.ipv4.defaultGateway;
+            interface = cfg.network.interface;
+        };
+
+        networking.defaultGateway6 = mkIf (cfg.network.ipv6.defaultGateway != null) {
+            address = cfg.network.ipv6.defaultGateway;
+            interface = cfg.network.interface;
+        };
+    })]);
 }

@@ -17,12 +17,21 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
     suffixAddress = addr: "${addr}/32";
     masterAddress = getAddress 1;
     subnet = getAddress 0 + "/24";
+    ipv4Gateway = "192.168.2.1";
+    interfaceName = "eth0";
+    serverPubKey = "3ADVtyHAJOyJObjbPkQv+U06I6Bma+PqxvSxV+yT7lw=";
 
-    createKubeNode = hostName: address: {
+    createKubeNode = {
+        hostName,
+        address,
+        localAddress,
+        offline ? false,
+        local ? false,
+    }: {
 
-        deployment.targetHost = address;
+        deployment.targetHost = (if local then localAddress else address);
         # For offline machines
-        # deployment.hasFastConnection = true;
+        deployment.hasFastConnection = offline;
 
         nixpkgs.localSystem.system = "aarch64-linux";
         imports = [
@@ -33,14 +42,14 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 enable = true;
                 addresses = [ masterAddress ] ++ defaultDNS;
             };
-            externalInterface = "end0";
+            externalInterface = interfaceName;
             internalInterfaces.wg0 = {
                 privateKeyFile = "/root/wireguard-keys/private";
                 address = [ (suffixAddress address) ];
 
                 peers.gateway = {
                     allowedIPs = [ subnet ];
-                    publicKey = "RaNaggBzoh18jWNYafs8aV4eCvcltg+JUz4Qd47unCQ=";
+                    publicKey = serverPubKey;
                     endpoint = "${gatewayAddress}:51820";
                 };
             };
@@ -51,7 +60,16 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
         ];
 
         midugh.rpi-config = {
-            inherit hostName;
+            network = {
+                inherit hostName;
+                enable = true;
+                interface = interfaceName;
+                ipv4 = {
+                    defaultGateway = ipv4Gateway;
+                    address = localAddress;
+                    prefixLength = 24;
+                };
+            };
             ssh.authorizedKeys = authorizedKeys;
         };
         services.rpi-kubernetes = {
@@ -70,8 +88,8 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
     in {
         nixopsConfigurations.default =
         let inherit (nixpkgs) lib;
-        derivateNode = hostname: address: config:
-        lib.attrsets.recursiveUpdate (createKubeNode hostname address) config; 
+        derivateNode = baseConfig: extraConfig:
+        lib.attrsets.recursiveUpdate (createKubeNode baseConfig) extraConfig; 
         in {
             inherit nixpkgs;
             network = {
@@ -85,7 +103,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 hostName = "cluster-master";
             in {
                 nixpkgs.localSystem.system = "aarch64-linux";
-                deployment.targetHost = address;
+                deployment.targetHost = "192.168.2.5";
 
                 # Allows deployment without internet connection
                 # deployment.hasFastConnection = true;
@@ -104,7 +122,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         customEntries."cluster.local" = getAddress 2;
                     };
 
-                    externalInterface = "end0";
+                    externalInterface = interfaceName;
                     internalInterfaces.wg0 = {
                         address = [ "${address}/24" ];
                         privateKeyFile = "/root/wireguard-keys/private";
@@ -141,7 +159,16 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 };
 
                 midugh.rpi-config = {
-                    inherit hostName;
+                    network = {
+                        inherit hostName;
+                        enable = true;
+                        interface = interfaceName;
+                        ipv4 = {
+                            defaultGateway = ipv4Gateway;
+                            address = "192.168.2.5";
+                            prefixLength = 24;
+                        };
+                    };
                     ssh.authorizedKeys = authorizedKeys;
                 };
                 services.rpi-kubernetes = {
@@ -178,8 +205,11 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 services.rpcbind.enable = lib.mkForce false;
             };
 
-            cluster-node-1 = let address = getAddress 2;
-            in derivateNode "cluster-node-1" address ({
+            cluster-node-1 = derivateNode {
+                localAddress = "192.168.2.47";
+                address = getAddress 2;
+                hostName = "cluster-node-1";
+            } ({
                 services.forward-proxy = {
                     enable = true;
                     hosts."*.${dnsSubnet}" = {
@@ -189,8 +219,17 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 };
             });
 
-            cluster-node-2 = createKubeNode "cluster-node-2" (getAddress 3);
-            cluster-node-3 = createKubeNode "cluster-node-3" (getAddress 4);
+            cluster-node-2 = createKubeNode {
+                hostName = "cluster-node-2";
+                localAddress = "192.168.2.30";
+                address = (getAddress 3);
             };
+
+            cluster-node-3 = createKubeNode {
+                hostName = "cluster-node-3";
+                localAddress = "192.168.2.31";
+                address = (getAddress 4);
+            };
+        };
     };
 }
