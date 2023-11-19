@@ -9,7 +9,7 @@
     }:
 let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu34+kDA8+FeyFQ6xoQgd0EBGXpJfiYiXlYU3B9Wmfu88YP4UqQka+WgQ/bncY8Ro22TPGi1qoFCp5W7zlmuBc1B462qFgtOF8k9SyHBzg4t1td4VS/PYp4h+K5xdQ+Vj3ZP+wdwlRxD+uABnjEgU34OuEn53foLLPGgEVrOehv0xU/DcBtdj1x/zCn9JnVExNGy2K5WTlOAmHDFCUzFU3BuDAa21HMFgbkCjDMmReUoQvyW1YqmjACjHJukV1v7l40GcFHNf4I/ggDFlABmxL8MCQoTxBfDTf1yPI9BJ6uPzu0Kp36JnC27NfF5UQw9rnYa5OHv+s3TW3QrRP52GshGU7EQjVke2/tGUDy74Rr1vtWIsFTTQ93Nx79rS/Jf1ad2dPCd0U2wAveYix7CxngfOKuWmPcNTEP6YOx+FmVA2/Gk/ipSBqRuquKVgfMhayfTBLNVCJpkog6rH1qXOK6f6ytiK8yrz1HV4KHl/yF/MiF9s= midugh@midugh-arch" ];
     defaultDNS = [ "192.168.1.1" ];
-    gatewayAddress = "192.168.2.5";
+    gatewayAddress = "192.168.2.142";
     dnsSubnet = "cluster.local";
     getAddress = n: 
         let subnetPrefix = "10.200.0";
@@ -73,6 +73,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             ssh.authorizedKeys = authorizedKeys;
         };
         services.rpi-kubernetes = {
+            enable = true;
             network = {
                 address = address;
             };
@@ -103,7 +104,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 hostName = "cluster-master";
             in {
                 nixpkgs.localSystem.system = "aarch64-linux";
-                deployment.targetHost = "192.168.2.5";
+                deployment.targetHost = address;
 
                 # Allows deployment without internet connection
                 # deployment.hasFastConnection = true;
@@ -119,7 +120,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     dns = {
                         enable = true;
                         addresses = defaultDNS;
-                        customEntries."cluster.local" = getAddress 2;
+                        customEntries.".cluster.local" = getAddress 2;
                     };
 
                     externalInterface = interfaceName;
@@ -128,17 +129,17 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         privateKeyFile = "/root/wireguard-keys/private";
 
                         peers.cluster-node-1 = {
-                            publicKey = "AQJjXBXb2pkIWQdX2YnArOClHOcdLqZRUslTkpYtTzU=";
+                            publicKey = "RYs58WNculdnChOdycKMZ5V2PJtc4nkfcC+ZOigDxG0=";
                             allowedIPs = [ (suffixAddress (getAddress 2)) ];
                         };
 
                         peers.cluster-node-2 = {
-                            publicKey = "38qdBG92oCCWnlc3aPEI9uOIkamXIulgk9QRkk5ez3Q=";
+                            publicKey = "FidZaNzQqmP9OxdhdtYYi8gD2ucwijNIrPXrmqXLNR4=";
                             allowedIPs = [ (suffixAddress (getAddress 3)) ];
                         };
 
                         peers.cluster-node-3 = {
-                            publicKey = "lxwDeBV8eh9JkOjuhpMFuGArpMaeF2+PhB0oHHK+ZQs=";
+                            publicKey = "ggceUNrf80Jiv9t88WhXwRS7/bwkZo5YKHM0yLSDjm4=";
                             allowedIPs = [ (suffixAddress (getAddress 4)) ];
                         };
 
@@ -148,6 +149,8 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         };
                     };
                 };
+
+                networking.firewall.allowedUDPPorts = [ 51820 ];
 
                 networking.firewall.allowedTCPPorts = [
                     2049 # nfs server
@@ -165,7 +168,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         interface = interfaceName;
                         ipv4 = {
                             defaultGateway = ipv4Gateway;
-                            address = "192.168.2.5";
+                            address = gatewayAddress;
                             prefixLength = 24;
                         };
                     };
@@ -186,11 +189,6 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     etcd.port = 2379;
                 };
 
-                fileSystems."/nfs" = {
-                    device = "/dev/sda";
-                    options = [ "bind" ];
-                };
-
                 services.nfs.server = {
                     enable = true;
                     exports = ''
@@ -206,7 +204,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             };
 
             cluster-node-1 = derivateNode {
-                localAddress = "192.168.2.47";
+                localAddress = "192.168.2.143";
                 address = getAddress 2;
                 hostName = "cluster-node-1";
             } ({
@@ -221,13 +219,13 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
 
             cluster-node-2 = createKubeNode {
                 hostName = "cluster-node-2";
-                localAddress = "192.168.2.30";
+                localAddress = "192.168.2.144";
                 address = (getAddress 3);
             };
 
             cluster-node-3 = createKubeNode {
                 hostName = "cluster-node-3";
-                localAddress = "192.168.2.31";
+                localAddress = "192.168.2.145";
                 address = (getAddress 4);
             };
         };

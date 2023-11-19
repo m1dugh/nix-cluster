@@ -13,12 +13,12 @@ in {
 
     midugh.rpi-config = {
         network = {
-            hostName = "cluster-master";
+            hostName = "cluster-node-3";
             enable = true;
             interface = "eth0";
             ipv4 = {
                 defaultGateway = "192.168.2.1";
-                address = "192.168.2.5";
+                address = "192.168.2.145";
                 prefixLength = 24;
             };
         };

@@ -165,8 +165,9 @@ in {
             vim
         ];
 
-    }(mkIf cfg.network.enable {
         networking.hostName = cfg.network.hostName;
+
+    }(mkIf cfg.network.enable {
         networking.useDHCP = false;
 
         networking.interfaces.${cfg.network.interface} = {
