@@ -39,6 +39,19 @@ in {
 
         dns = {
             enable = mkEnableOption "DNS in wireguard";
+
+            interface = {
+                description = "The network interface for wireguard";
+                type = types.str;
+                default = "wg0";
+            };
+
+            domain = mkOption {
+                description = "The default domain";
+                type = types.nullOr types.str;
+                default = null;
+            };
+
             addresses = mkOption {
                 description = "The addresses of the dns server if client, the DNS servers to query if server";
                 type = types.listOf types.str;
@@ -82,10 +95,16 @@ in {
 
             services.dnsmasq = mkIf cfg.dns.enable {
                 enable = true;
+                /*extraConfig = ''
+                    interface=${cfg.dns.interface}
+                '';*/
                 settings = {
                     cache-size = 500;
+                    domain = cfg.dns.domain;
                 };
-                settings.server = cfg.dns.addresses;
+                settings.server =
+                let entries = builtins.attrValues (builtins.mapAttrs (name: addr: "/${name}/${addr}") cfg.dns.customEntries);
+                in (cfg.dns.addresses ++ entries);
             };
         })
         (mkIf (! cfg.isServer) {
@@ -97,7 +116,6 @@ in {
             networking.nameservers = cfg.dns.addresses;
         })
         {
-
             networking.firewall.allowedUDPPorts = [
                 cfg.listenPort
             ] ++ (lists.optional (cfg.isServer && cfg.dns.enable) 53);
