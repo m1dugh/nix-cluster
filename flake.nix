@@ -1,7 +1,7 @@
 {
     description = "A very basic flake";
 
-    inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
 
     outputs = {
         nixpkgs,
@@ -9,13 +9,13 @@
     }:
 let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu34+kDA8+FeyFQ6xoQgd0EBGXpJfiYiXlYU3B9Wmfu88YP4UqQka+WgQ/bncY8Ro22TPGi1qoFCp5W7zlmuBc1B462qFgtOF8k9SyHBzg4t1td4VS/PYp4h+K5xdQ+Vj3ZP+wdwlRxD+uABnjEgU34OuEn53foLLPGgEVrOehv0xU/DcBtdj1x/zCn9JnVExNGy2K5WTlOAmHDFCUzFU3BuDAa21HMFgbkCjDMmReUoQvyW1YqmjACjHJukV1v7l40GcFHNf4I/ggDFlABmxL8MCQoTxBfDTf1yPI9BJ6uPzu0Kp36JnC27NfF5UQw9rnYa5OHv+s3TW3QrRP52GshGU7EQjVke2/tGUDy74Rr1vtWIsFTTQ93Nx79rS/Jf1ad2dPCd0U2wAveYix7CxngfOKuWmPcNTEP6YOx+FmVA2/Gk/ipSBqRuquKVgfMhayfTBLNVCJpkog6rH1qXOK6f6ytiK8yrz1HV4KHl/yF/MiF9s= midugh@midugh-arch" ];
     defaultDNS = [ "192.168.1.1" ];
-    gatewayAddress = "192.168.2.142";
+    gatewayAddress = "192.168.2.145";
     dnsSubnet = "cluster.local";
     getAddress = n: 
         let subnetPrefix = "10.200.0";
         in "${subnetPrefix}.${builtins.toString n}";
     suffixAddress = addr: "${addr}/32";
-    masterAddress = getAddress 1;
+    masterAddress = getAddress 100;
     subnet = getAddress 0 + "/24";
     ipv4Gateway = "192.168.2.1";
     interfaceName = "eth0";
@@ -40,7 +40,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
         services.rpi-wireguard = {
             dns = {
                 enable = true;
-                addresses = [ masterAddress ] ++ defaultDNS;
+                addresses = [ gatewayAddress ] ++ defaultDNS;
             };
             externalInterface = interfaceName;
             internalInterfaces.wg0 = {
@@ -101,10 +101,12 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             };
             cluster-master =
             let address = masterAddress;
+                localAddress = "192.168.2.142";
                 hostName = "cluster-master";
+                local = false;
             in {
                 nixpkgs.localSystem.system = "aarch64-linux";
-                deployment.targetHost = address;
+                deployment.targetHost = if local then localAddress else address;
 
                 # Allows deployment without internet connection
                 # deployment.hasFastConnection = true;
@@ -115,51 +117,27 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
 
                 services.rpi-wireguard = {
                     enable = true;
-                    isServer = true;
-
                     dns = {
-                        enable = true;
-                        addresses = defaultDNS;
-                        customEntries.".cluster.local" = getAddress 2;
+                        enable = false;
+                        addresses = [ gatewayAddress ] ++ defaultDNS;
                     };
-
                     externalInterface = interfaceName;
                     internalInterfaces.wg0 = {
-                        address = [ "${address}/24" ];
                         privateKeyFile = "/root/wireguard-keys/private";
+                        address = [ (suffixAddress address) ];
 
-                        peers.cluster-node-1 = {
-                            publicKey = "RYs58WNculdnChOdycKMZ5V2PJtc4nkfcC+ZOigDxG0=";
-                            allowedIPs = [ (suffixAddress (getAddress 2)) ];
-                        };
-
-                        peers.cluster-node-2 = {
-                            publicKey = "FidZaNzQqmP9OxdhdtYYi8gD2ucwijNIrPXrmqXLNR4=";
-                            allowedIPs = [ (suffixAddress (getAddress 3)) ];
-                        };
-
-                        peers.cluster-node-3 = {
-                            publicKey = "ggceUNrf80Jiv9t88WhXwRS7/bwkZo5YKHM0yLSDjm4=";
-                            allowedIPs = [ (suffixAddress (getAddress 4)) ];
-                        };
-
-                        peers.midugh-pc = {
-                            publicKey = "5YtnXbwCv8i0Vy2WPo1DgM4fYgXib25tnRKVHPRz7m0=";
-                            allowedIPs = [ (suffixAddress (getAddress 42)) ];
+                        peers.gateway = {
+                            allowedIPs = [ subnet ];
+                            publicKey = serverPubKey;
+                            endpoint = "${gatewayAddress}:51820";
                         };
                     };
                 };
-
-                networking.firewall.allowedUDPPorts = [ 51820 ];
 
                 networking.firewall.allowedTCPPorts = [
                     2049 # nfs server
                     9100 # prometheus
                 ];
-
-                services.forward-proxy = {
-                    enable = true;
-                };
 
                 midugh.rpi-config = {
                     network = {
@@ -168,14 +146,14 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         interface = interfaceName;
                         ipv4 = {
                             defaultGateway = ipv4Gateway;
-                            address = gatewayAddress;
+                            address = localAddress;
                             prefixLength = 24;
                         };
                     };
                     ssh.authorizedKeys = authorizedKeys;
                 };
                 services.rpi-kubernetes = {
-                    enable = true;
+                    enable = false;
                     network = {
                         inherit address;
                     };
@@ -190,7 +168,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 };
 
                 services.nfs.server = {
-                    enable = true;
+                    enable = false;
                     exports = ''
                         /nfs ${subnet}(rw,no_subtree_check,fsid=0)
                         /nfs/promdata ${subnet}(rw,nohide,insecure,no_subtree_check)
@@ -205,7 +183,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
 
             cluster-node-1 = derivateNode {
                 localAddress = "192.168.2.143";
-                address = getAddress 2;
+                address = getAddress 101;
                 hostName = "cluster-node-1";
             } ({
                 services.forward-proxy = {
@@ -220,13 +198,75 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             cluster-node-2 = createKubeNode {
                 hostName = "cluster-node-2";
                 localAddress = "192.168.2.144";
-                address = (getAddress 3);
+                address = (getAddress 102);
             };
 
-            cluster-node-3 = createKubeNode {
-                hostName = "cluster-node-3";
-                localAddress = "192.168.2.145";
-                address = (getAddress 4);
+            gateway = 
+            let localAddress = "192.168.2.145";
+                address = (getAddress 1);
+                hostName = "cluster-gateway";
+                local = false;
+            in {
+                nixpkgs.localSystem.system = "aarch64-linux";
+                deployment.targetHost = if local then localAddress else address;
+
+                imports = [
+                    ./rpi-cluster
+                ];
+
+                services.rpi-kubernetes.enable = false;
+                services.forward-proxy.enable = false;
+
+                midugh.rpi-config = {
+                    network = {
+                        inherit hostName;
+                        enable = true;
+                        interface = interfaceName;
+                        ipv4 = {
+                            defaultGateway = ipv4Gateway;
+                            address = localAddress;
+                            prefixLength = 24;
+                        };
+                    };
+                    ssh.authorizedKeys = authorizedKeys;
+                };
+
+                services.rpi-wireguard = {
+                    enable = true;
+                    isServer = true;
+
+                    dns = {
+                        enable = true;
+                        addresses = defaultDNS;
+                        customEntries."*.cluster.local" = getAddress 2;
+                    };
+
+                    externalInterface = interfaceName;
+                    internalInterfaces.wg0 = {
+                        address = [ "${address}/24" ];
+                        privateKeyFile = "/root/wireguard-keys/private";
+
+                        peers.cluster-master = {
+                            publicKey = "rT10J2VrIGqY/+UBc93EdE1WM3Qe3GPSwMLB0t7Y1lc=";
+                            allowedIPs = [ (suffixAddress (getAddress 100)) ];
+                        };
+
+                        peers.cluster-node-1 = {
+                            publicKey = "RYs58WNculdnChOdycKMZ5V2PJtc4nkfcC+ZOigDxG0=";
+                            allowedIPs = [ (suffixAddress (getAddress 101)) ];
+                        };
+
+                        peers.cluster-node-2 = {
+                            publicKey = "FidZaNzQqmP9OxdhdtYYi8gD2ucwijNIrPXrmqXLNR4=";
+                            allowedIPs = [ (suffixAddress (getAddress 102)) ];
+                        };
+
+                        peers.midugh-pc = {
+                            publicKey = "5YtnXbwCv8i0Vy2WPo1DgM4fYgXib25tnRKVHPRz7m0=";
+                            allowedIPs = [ (suffixAddress (getAddress 42)) ];
+                        };
+                    };
+                };
             };
         };
     };

@@ -40,7 +40,7 @@ in {
         dns = {
             enable = mkEnableOption "DNS in wireguard";
 
-            interface = {
+            interface = mkOption {
                 description = "The network interface for wireguard";
                 type = types.str;
                 default = "wg0";
@@ -93,18 +93,18 @@ in {
                 '';
             });
 
+            networking.extraHosts =
+            lib.concatStringsSep "\n"
+            (builtins.attrValues (builtins.mapAttrs (name: addr: "${addr} ${name}") cfg.dns.customEntries));
+
             services.dnsmasq = mkIf cfg.dns.enable {
                 enable = true;
-                /*extraConfig = ''
-                    interface=${cfg.dns.interface}
-                '';*/
                 settings = {
                     cache-size = 500;
                     domain = cfg.dns.domain;
+                    expand-hosts = true;
                 };
-                settings.server =
-                let entries = builtins.attrValues (builtins.mapAttrs (name: addr: "/${name}/${addr}") cfg.dns.customEntries);
-                in (cfg.dns.addresses ++ entries);
+                settings.server = cfg.dns.addresses;
             };
         })
         (mkIf (! cfg.isServer) {
@@ -115,12 +115,16 @@ in {
         (mkIf ((! cfg.isServer) && cfg.dns.enable) {
             networking.nameservers = cfg.dns.addresses;
         })
+        (mkIf (cfg.isServer && cfg.dns.enable) {
+            networking.firewall.interfaces."${cfg.dns.interface}" = {
+                allowedUDPPorts = lists.optional (cfg.isServer && cfg.dns.enable) 53;
+                allowedTCPPorts = lists.optional (cfg.isServer && cfg.dns.enable) 53;
+            };
+        })
         {
             networking.firewall.allowedUDPPorts = [
                 cfg.listenPort
-            ] ++ (lists.optional (cfg.isServer && cfg.dns.enable) 53);
-
-            networking.firewall.allowedTCPPorts = lists.optional (cfg.isServer && cfg.dns.enable) 53;
+            ];
 
             networking.wg-quick.interfaces = forEachInterface (interface: ifcfg: 
             let mapPeers = func: builtins.attrValues (builtins.mapAttrs func ifcfg.peers);
