@@ -180,22 +180,23 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     vers3=no
                     '';
                 };
+
+                fileSystems."/nfs" = {
+                    label = "KUBE";
+                    fsType = "btrfs";
+                    options = [
+                        "nofail"
+                    ];
+                };
+
                 services.rpcbind.enable = lib.mkForce false;
             };
 
-            cluster-node-1 = derivateNode {
+            cluster-node-1 = createKubeNode {
                 localAddress = "192.168.2.143";
                 address = getAddress 101;
                 hostName = "cluster-node-1";
-            } ({
-                services.forward-proxy = {
-                    enable = true;
-                    hosts."*.${dnsSubnet}" = {
-                        forceSsl = false;
-                        proxyUrl = "http://127.0.0.1:30792";
-                    };
-                };
-            });
+            };
 
             cluster-node-2 = createKubeNode {
                 hostName = "cluster-node-2";
