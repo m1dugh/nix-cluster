@@ -25,6 +25,9 @@ in {
 
         environment.systemPackages = with pkgs; [
             nfs-utils
+
+            tcpdump
+            termshark
         ];
     };
 }

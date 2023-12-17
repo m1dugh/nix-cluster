@@ -1,7 +1,7 @@
 {
     description = "A very basic flake";
 
-    inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+    inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
 
     outputs = {
         nixpkgs,
@@ -9,7 +9,7 @@
     }:
 let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu34+kDA8+FeyFQ6xoQgd0EBGXpJfiYiXlYU3B9Wmfu88YP4UqQka+WgQ/bncY8Ro22TPGi1qoFCp5W7zlmuBc1B462qFgtOF8k9SyHBzg4t1td4VS/PYp4h+K5xdQ+Vj3ZP+wdwlRxD+uABnjEgU34OuEn53foLLPGgEVrOehv0xU/DcBtdj1x/zCn9JnVExNGy2K5WTlOAmHDFCUzFU3BuDAa21HMFgbkCjDMmReUoQvyW1YqmjACjHJukV1v7l40GcFHNf4I/ggDFlABmxL8MCQoTxBfDTf1yPI9BJ6uPzu0Kp36JnC27NfF5UQw9rnYa5OHv+s3TW3QrRP52GshGU7EQjVke2/tGUDy74Rr1vtWIsFTTQ93Nx79rS/Jf1ad2dPCd0U2wAveYix7CxngfOKuWmPcNTEP6YOx+FmVA2/Gk/ipSBqRuquKVgfMhayfTBLNVCJpkog6rH1qXOK6f6ytiK8yrz1HV4KHl/yF/MiF9s= midugh@midugh-arch" ];
     defaultDNS = [ "192.168.1.1" ];
-    gatewayAddress = "192.168.2.145";
+    gatewayAddress = "192.168.2.108";
     dnsSubnet = "cluster.local";
     getAddress = n: 
         let subnetPrefix = "10.200.0";
@@ -109,7 +109,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 deployment.targetHost = if local then localAddress else address;
 
                 # Allows deployment without internet connection
-                # deployment.hasFastConnection = true;
+                deployment.hasFastConnection = false;
 
                 imports = [
                     ./rpi-cluster
@@ -118,7 +118,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 services.rpi-wireguard = {
                     enable = true;
                     dns = {
-                        enable = false;
+                        enable = true;
                         addresses = [ gatewayAddress ] ++ defaultDNS;
                     };
                     externalInterface = interfaceName;
@@ -137,6 +137,8 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 networking.firewall.allowedTCPPorts = [
                     2049 # nfs server
                     9100 # prometheus
+                    80   # http port
+                    443  # https port
                 ];
 
                 midugh.rpi-config = {
@@ -153,7 +155,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     ssh.authorizedKeys = authorizedKeys;
                 };
                 services.rpi-kubernetes = {
-                    enable = false;
+                    enable = true;
                     network = {
                         inherit address;
                     };
@@ -202,7 +204,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             };
 
             gateway = 
-            let localAddress = "192.168.2.145";
+            let localAddress = "192.168.2.108";
                 address = (getAddress 1);
                 hostName = "cluster-gateway";
                 local = false;
@@ -220,15 +222,18 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 midugh.rpi-config = {
                     network = {
                         inherit hostName;
+                        useDHCP = true;
                         enable = true;
                         interface = interfaceName;
-                        ipv4 = {
-                            defaultGateway = ipv4Gateway;
-                            address = localAddress;
-                            prefixLength = 24;
-                        };
                     };
-                    ssh.authorizedKeys = authorizedKeys;
+                    ssh.authorizedKeys = authorizedKeys ++ [
+                        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDoYcw1zngwE35iEAUdwCGTae1sm8mWQ5ejsAQaCGZCY6rDBJfQKVTU2iV1WJn6SzUYHkp5z2HnSneQG/9j8g5Hio3JvijIjQeJOjk2wwVaK9Ri6bf2EWTIZPDDGM84i+kydwbTpXFTAsbfj2uHhXq/NG78Y16ReiCAcv30pRZ/8+/dN7iL0e5cmn7p+HWZY1PD/7nn82rIp6y/Vahit3amHQnu6HkyHBtHEnS0OLmH1QceFoJprvDXux1S6CWRfH8iLggBCr93cZD6eupLwqGQPZ36LSglj0rwDL6r4DBA0g0USgrQPoDrYRRBVdD79Ygt8QilpzmX9o8Jtw0BvXISI8xhzHnsrNV9GYXfn60Y7E9YZnTswsS5YB3MrmmAnCeBuPoe1r2Zuo9QFDWnT/RFMFlAIiO/hcs4KSHJyCsq0BW7LqQbLpiPw/sgp7flsvOO3U63SA+sk60TGfZU1oBSR5FLi+Wv1gfbsXzp1e4qovPfXDA043GdLkdiY1G21XY5vcWHwEpKsEzD2bgtRIDAqVCJHULji8Q9iNWEePfR2B59IE/LJJDDzHBExeUA0BHYR6+he+YPVxIQHzmXOhDp/mSftj6KQ24l3gO8IDo23PRD0xG7G/xPBTUuwNUups3mtBhp6AGp0G3/CBCAb9WE3KDUqTd5o90+FIU4i6OneQ=="
+                    ];
+
+                    ssh.authorizedIPs = [
+                        "192.168.1.0/22"
+                        subnet
+                    ];
                 };
 
                 services.rpi-wireguard = {
@@ -264,6 +269,11 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         peers.midugh-pc = {
                             publicKey = "5YtnXbwCv8i0Vy2WPo1DgM4fYgXib25tnRKVHPRz7m0=";
                             allowedIPs = [ (suffixAddress (getAddress 42)) ];
+                        };
+
+                        peers.midugh-phone = {
+                            publicKey = "Hpb87xmb9sTOjT4t/13BITP6l6NzQdAjOaL9f1LABk8=";
+                            allowedIPs = [ (suffixAddress (getAddress 43)) ];
                         };
                     };
                 };

@@ -6,11 +6,18 @@
 }:
 with lib;
 let cfg = config.midugh.rpi-config;
+    opensshcfg = config.services.openssh;
     mkSshOptions = {
         authorizedKeys = mkOption {
             description = "A list of SSH Authorized keys for root";
             type = types.listOf types.str;
             default = [];
+        };
+
+        authorizedIPs = mkOption {
+            description = "A list of ip ranges authorized for ssh through the firewall";
+            type = types.nullOr (types.listOf types.str);
+            default = null;
         };
     };
     mkNetworkOptions = {
@@ -31,6 +38,12 @@ let cfg = config.midugh.rpi-config;
             description = "The name on the network";
             type = types.nullOr types.str;
             default = null;
+        };
+
+        useDHCP = mkOption {
+            description = "Whether to use dhcp for this interface";
+            type = types.bool;
+            default = false;
         };
 
         ipv4 = {
@@ -131,7 +144,25 @@ in {
         };
     }
     {
-        services.openssh.enable = true;
+        services.openssh = {
+            enable = true;
+            openFirewall = cfg.ssh.authorizedIPs == null;
+        };
+
+        networking.firewall = mkIf (cfg.ssh.authorizedIPs != null) (
+        let ports = strings.concatMapStringsSep "," toString opensshcfg.ports;
+            addresses = strings.concatStringsSep "," cfg.ssh.authorizedIPs;
+        in {
+            extraCommands = ''
+                iptables -A INPUT -p tcp --match multiport --dports ${ports} -s ${addresses} -j ACCEPT
+                iptables -A OUTPUT -p tcp -d ${addresses} -j ACCEPT
+            '';
+            extraStopCommands = ''
+                iptables -D INPUT -p tcp --match multiport --dports ${ports} -s ${addresses} -j ACCEPT
+                iptables -D OUTPUT -p tcp -d ${addresses} -j ACCEPT
+            '';
+        });
+
         users.users.root.openssh.authorizedKeys.keys = cfg.ssh.authorizedKeys;
     }
     {
@@ -171,11 +202,11 @@ in {
         networking.useDHCP = false;
 
         networking.interfaces.${cfg.network.interface} = {
-            useDHCP = false;
-            ipv4.addresses = lists.optional (cfg.network.ipv4.address != null) {
+            useDHCP = cfg.network.useDHCP;
+            ipv4.addresses = lists.optional (!cfg.network.useDHCP && cfg.network.ipv4.address != null) {
                 inherit (cfg.network.ipv4) address prefixLength;
             };
-            ipv6.addresses = lists.optional (cfg.network.ipv6.address != null) {
+            ipv6.addresses = lists.optional (!cfg.network.useDHCP && cfg.network.ipv6.address != null) {
                 inherit (cfg.network.ipv6) address prefixLength;
             };
         };
