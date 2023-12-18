@@ -93,9 +93,14 @@ in {
                 '';
             });
 
-            networking.extraHosts =
-            lib.concatStringsSep "\n"
-            (builtins.attrValues (builtins.mapAttrs (name: addr: "${addr} ${name}") cfg.dns.customEntries));
+            environment.etc."dnsmasq.d/custom-records" = {
+                text = let lines = builtins.attrValues (
+                    builtins.mapAttrs (name: addr: "address=/${name}/${addr}") cfg.dns.customEntries
+                );
+                in lib.concatStringsSep "\n" lines;
+
+                mode = "0440";
+            };
 
             services.dnsmasq = mkIf cfg.dns.enable {
                 enable = true;
@@ -103,8 +108,12 @@ in {
                     cache-size = 500;
                     domain = cfg.dns.domain;
                     expand-hosts = true;
+                    conf-dir = [
+                        "/etc/dnsmasq.d/"
+                    ];
+
+                    server = cfg.dns.addresses;
                 };
-                settings.server = cfg.dns.addresses;
             };
         })
         (mkIf (! cfg.isServer) {

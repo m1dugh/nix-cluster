@@ -170,7 +170,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 };
 
                 services.nfs.server = {
-                    enable = false;
+                    enable = true;
                     exports = ''
                         /nfs ${subnet}(rw,no_subtree_check,fsid=0)
                         /nfs/promdata ${subnet}(rw,nohide,insecure,no_subtree_check)
@@ -244,7 +244,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     dns = {
                         enable = true;
                         addresses = defaultDNS;
-                        customEntries."*.cluster.local" = getAddress 2;
+                        customEntries."cluster.local" = getAddress 100;
                     };
 
                     externalInterface = interfaceName;
