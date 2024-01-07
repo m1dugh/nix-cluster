@@ -9,15 +9,17 @@
     }:
 let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu34+kDA8+FeyFQ6xoQgd0EBGXpJfiYiXlYU3B9Wmfu88YP4UqQka+WgQ/bncY8Ro22TPGi1qoFCp5W7zlmuBc1B462qFgtOF8k9SyHBzg4t1td4VS/PYp4h+K5xdQ+Vj3ZP+wdwlRxD+uABnjEgU34OuEn53foLLPGgEVrOehv0xU/DcBtdj1x/zCn9JnVExNGy2K5WTlOAmHDFCUzFU3BuDAa21HMFgbkCjDMmReUoQvyW1YqmjACjHJukV1v7l40GcFHNf4I/ggDFlABmxL8MCQoTxBfDTf1yPI9BJ6uPzu0Kp36JnC27NfF5UQw9rnYa5OHv+s3TW3QrRP52GshGU7EQjVke2/tGUDy74Rr1vtWIsFTTQ93Nx79rS/Jf1ad2dPCd0U2wAveYix7CxngfOKuWmPcNTEP6YOx+FmVA2/Gk/ipSBqRuquKVgfMhayfTBLNVCJpkog6rH1qXOK6f6ytiK8yrz1HV4KHl/yF/MiF9s= midugh@midugh-arch" ];
     defaultDNS = [ "192.168.1.1" ];
-    gatewayAddress = "192.168.2.108";
-    dnsSubnet = "cluster.local";
+    gatewayAddress = "192.168.2.145";
+    dnsSubnet = "local.midugh.fr";
     getAddress = n: 
         let subnetPrefix = "10.200.0";
         in "${subnetPrefix}.${builtins.toString n}";
     suffixAddress = addr: "${addr}/32";
     masterAddress = getAddress 100;
     subnet = getAddress 0 + "/24";
-    ipv4Gateway = "192.168.2.1";
+    vpnGateway = getAddress 1;
+    ipv4Gateway = "192.168.1.1";
+    localPrefixLen = 22;
     interfaceName = "eth0";
     serverPubKey = "3ADVtyHAJOyJObjbPkQv+U06I6Bma+PqxvSxV+yT7lw=";
 
@@ -40,7 +42,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
         services.rpi-wireguard = {
             dns = {
                 enable = true;
-                addresses = [ gatewayAddress ] ++ defaultDNS;
+                addresses = [ vpnGateway ] ++ defaultDNS;
             };
             externalInterface = interfaceName;
             internalInterfaces.wg0 = {
@@ -67,7 +69,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                 ipv4 = {
                     defaultGateway = ipv4Gateway;
                     address = localAddress;
-                    prefixLength = 24;
+                    prefixLength = localPrefixLen;
                 };
             };
             ssh.authorizedKeys = authorizedKeys;
@@ -149,7 +151,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                         ipv4 = {
                             defaultGateway = ipv4Gateway;
                             address = localAddress;
-                            prefixLength = 24;
+                            prefixLength = localPrefixLen;
                         };
                     };
                     ssh.authorizedKeys = authorizedKeys;
@@ -171,11 +173,18 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
 
                 services.nfs.server = {
                     enable = true;
-                    exports = ''
-                        /nfs ${subnet}(rw,no_subtree_check,fsid=0)
-                        /nfs/promdata ${subnet}(rw,nohide,insecure,no_subtree_check)
-                        /nfs/grafana ${subnet}(rw,nohide,insecure,no_subtree_check)
-                    '';
+                    exports =
+                    let folders = [
+                        "promdata"
+                        "grafana"
+                        "postgres"
+                        "vaultwarden"
+                    ];
+                        rootEntry = "/nfs ${subnet}(rw,no_subtree_check,fsid=0)";
+                        subfileEntries = builtins.map (sub: "/nfs/${sub} ${subnet}(rw,nohide,insecure,no_subtree_check)") folders;
+                    in
+                        lib.strings.concatStringsSep "\n" ([rootEntry] ++ subfileEntries);
+
                     extraNfsdConfig = ''
                     vers3=no
                     '';
@@ -205,7 +214,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
             };
 
             gateway = 
-            let localAddress = "192.168.2.108";
+            let localAddress = gatewayAddress;
                 address = (getAddress 1);
                 hostName = "cluster-gateway";
                 local = false;
@@ -244,7 +253,7 @@ let authorizedKeys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClvwb6jBskbU/RfINu
                     dns = {
                         enable = true;
                         addresses = defaultDNS;
-                        customEntries."cluster.local" = getAddress 100;
+                        customEntries.${dnsSubnet} = getAddress 100;
                     };
 
                     externalInterface = interfaceName;

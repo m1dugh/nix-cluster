@@ -93,8 +93,8 @@ in {
         hashedPassword = mkOption {
             description = "The hashed password for the root user";
             type = types.str;
-            # Default: password
-            default = "$6$QuhEKr0ZX46NJqjv$s.euYXMmAmDmqP65EuTO7vYURZTH/wbdkZQ/TcuUvGD4SGM4z7SOn2V1YGop87OJ.Lg.3UJndI5hSBdlTzAzI.";
+            # Deactivating the root password
+            default = "";
         };
         ssh = mkSshOptions;
     };
