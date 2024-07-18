@@ -5,6 +5,13 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     systems.url = "github:nix-systems/default-linux";
 
+    sops-nix = {
+        url = "github:Mic92/sops-nix";
+        inputs = {
+            nixpkgs-stable.follows = "nixpkgs";
+        };
+    };
+
     flake-utils = {
       url = "github:numtide/flake-utils";
       inputs.systems.follows = "systems";
@@ -14,8 +21,8 @@
   outputs =
     { 
     self
-    , systems
     , nixpkgs
+    , sops-nix
     , flake-utils
     , ...
     }:
@@ -52,26 +59,54 @@
                     };
             });
       nixosModules = {
-        kubernetes = (import ./modules/kubernetes);
+        kubernetes = {
+            imports = [
+                ./modules/kubernetes
+                ./modules/calico
+            ];
+        };
       };
 
       nixosConfigurations = 
-      let mkConfig = flake-utils.lib.eachDefaultSystemMap (system:
-          let localPackages = self.packages.${system};
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [
-                (final: prev: {
-                    inherit (localPackages) calico-node;
-                })
-            ];
-          };
-          in lib.nixosSystem {
-            inherit system pkgs;
-            specialArgs = {};
-          });
+      let pkgsFor = flake-utils.lib.eachDefaultSystemMap (system: 
+      let localPackages = self.packages.${system};
+      in import nixpkgs {
+        inherit system;
+        overlays = [
+            (final: prev: {
+                inherit (localPackages) calico-node;
+            })
+        ];
+      });
       in {
-        cluster-master = mkConfig;
+        cluster-master-vm =
+        let system = "x86_64-linux";
+        in lib.nixosSystem {
+            inherit system;
+            pkgs = pkgsFor.${system};
+            specialArgs = {
+                ipAddress = "192.168.1.145";
+                masterAddress = "192.168.1.145";
+            };
+
+            modules = [
+                self.nixosModules.kubernetes
+                sops-nix.nixosModules.sops
+                ./config
+            ];
+        };
+        cluster-master = 
+        let system = "aarch64-linux";
+        in lib.nixosSystem {
+            inherit system;
+            pkgs = pkgsFor.${system};
+
+            modules = [
+                self.nixosModules.kubernetes
+                sops-nix.nixosModules.sops
+                ./config
+            ];
+        };
       };
 
       formatter = flake-utils.lib.eachDefaultSystemMap

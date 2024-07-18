@@ -11,12 +11,12 @@ in {
         enable = mkEnableOption "calico";
         etcd = mkOption {
             description = "The config for etcd";
-            type = types.submodule ({}: {
+            type = types.submodule ({...}: {
                 options = {
                     endpoints = mkOption {
-                        type = types.listOf types.string;
+                        type = types.listOf types.str;
                         description = "The list of endpoints for etcd";
-                        exampleLitteral = ''
+                        example = literalExpression ''
                         [
                             "http://localhost:2379"
                         ]
@@ -24,33 +24,27 @@ in {
                     };
 
                     caFile = mkOption {
-                        type = types.nullOr types.path;
+                        type = types.nullOr types.str;
                         description = "The path to the etcd server cert, only required if using https";
                         default = null;
 
-                        exampleLitteral = ''
-                            ./path/to/etcd.pem
-                        '';
+                        example = "./path/to/ca.crt";
                     };
 
                     certFile = mkOption {
-                        type = types.nullOr types.path;
+                        type = types.nullOr types.str;
                         description = "The path to certificate for client auth";
                         default = null;
 
-                        exampleLitteral = ''
-                            ./path/to/etcd.crt
-                        '';
+                        example = "./path/to/etcd.crt";
                     };
 
                     keyFile = mkOption {
-                        type = types.nullOr types.path;
+                        type = types.nullOr types.str;
                         description = "The path to key for client auth";
                         default = null;
 
-                        exampleLitteral = ''
-                            ./path/to/etcd.pem
-                        '';
+                        example = "./path/to/etcd.pem";
                     };
                 };
             });
@@ -72,16 +66,20 @@ in {
         ];
 
         systemd.services.calico = 
-        let envFile = lib.writeText "$out/calico.env" (strings.conactStringsSep "\n" (with cfg.etcd;
-        [
-        ''
+        let content = with cfg.etcd; ''
             FELIX_DATASTORETYPE=etcdv3
             FELIX_ETCDENDPOINTS=${strings.concatStringsSep "," endpoints}
         ''
-        strings.optionalString (not isNull caFile) "FELIX_ETCDCAFILE=${caFile}"
-        strings.optionalString (not isNull certFile) "FELIX_ETCDCERTFILE=${certFile}"
-        strings.optionalString (not isNull keyFile) "FELIX_ETCDKEYFILE=${keyFile}"
-        ]));
+        + strings.optionalString (caFile != null) ''
+            FELIX_ETCDCAFILE=${caFile}
+        ''
+        + strings.optionalString (certFile != null) ''
+            FELIX_ETCDCERTFILE=${certFile}
+        ''
+        + strings.optionalString (keyFile != null) ''
+            FELIX_ETCDKEYFILE=${keyFile}
+        '';
+        envFile = pkgs.writeText "calico.env" content;
         in {
             unitConfig = {
                 Description = "The calico cni plugin";

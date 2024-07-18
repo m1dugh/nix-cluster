@@ -1,0 +1,10 @@
+keys:
+  - &admin_midugh EB3C07037A5C7AE7E622D5597FE4C52C2C91DBD2
+  - &server_master age1d8c7ggdjf3pp9hveexxsr9el245jnqmlc7pl9a48r32fw56tvfusy2t7d7
+creation_rules:
+  - path_regex: secrets/[^/]+\.yaml$
+    key_groups:
+    - pgp:
+      - *admin_midugh
+    - age:
+      - *server_master
