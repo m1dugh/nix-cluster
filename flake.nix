@@ -16,9 +16,48 @@
     , flake-utils
     , ...
     }:
+
     let inherit (nixpkgs) lib;
     in {
-      nixosModules = { };
+        packages = 
+            (let systems = [
+                "x86_64-linux"
+            ];
+            in flake-utils.lib.eachSystemMap systems (system:
+                let pkgs = nixpkgs.legacyPackages.${system};
+                in {
+                    calico-node = pkgs.stdenv.mkDerivation {
+                        name = "calico-node";
+                        src = ./modules/calico/bin;
+                        configurePhase = ''
+                            mkdir -p $out/bin/
+                        '';
+
+                        installPhase = ''
+                            install -m 0755 $src/${system}/calico-node $out/bin/calico-node
+                        '';
+
+                        nativeBuildInputs = with pkgs; [
+                            makeWrapper
+                        ];
+
+                        postFixup = ''
+                            patchelf --replace-needed libelf.so.1 libelf.so $out/bin/calico-node
+                            wrapProgram $out/bin/calico-node \
+                                --set LD_LIBRARY_PATH ${lib.makeLibraryPath [
+                                    pkgs.libelf
+                                    pkgs.libpcap
+                                ]}:''$LD_LIBRARY_PATH
+                        '';
+                    };
+            }));
+      nixosModules = {
+        kubernetes = {
+            imports = [
+                ./modules/kubernetes
+            ];
+        };
+      };
 
       nixosConfigurations = { };
 
