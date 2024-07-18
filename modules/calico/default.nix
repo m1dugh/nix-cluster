@@ -1,7 +1,6 @@
 {
     pkgs,
     config,
-    options,
     lib,
     ...
 }:
@@ -23,6 +22,36 @@ in {
                         ]
                         '';
                     };
+
+                    caFile = mkOption {
+                        type = types.nullOr types.path;
+                        description = "The path to the etcd server cert, only required if using https";
+                        default = null;
+
+                        exampleLitteral = ''
+                            ./path/to/etcd.pem
+                        '';
+                    };
+
+                    certFile = mkOption {
+                        type = types.nullOr types.path;
+                        description = "The path to certificate for client auth";
+                        default = null;
+
+                        exampleLitteral = ''
+                            ./path/to/etcd.crt
+                        '';
+                    };
+
+                    keyFile = mkOption {
+                        type = types.nullOr types.path;
+                        description = "The path to key for client auth";
+                        default = null;
+
+                        exampleLitteral = ''
+                            ./path/to/etcd.pem
+                        '';
+                    };
                 };
             });
         };
@@ -42,7 +71,18 @@ in {
             calico-node
         ];
 
-        systemd.services.calico = {
+        systemd.services.calico = 
+        let envFile = lib.writeText "$out/calico.env" (strings.conactStringsSep "\n" (with cfg.etcd;
+        [
+        ''
+            FELIX_DATASTORETYPE=etcdv3
+            FELIX_ETCDENDPOINTS=${strings.concatStringsSep "," endpoints}
+        ''
+        strings.optionalString (not isNull caFile) "FELIX_ETCDCAFILE=${caFile}"
+        strings.optionalString (not isNull certFile) "FELIX_ETCDCERTFILE=${certFile}"
+        strings.optionalString (not isNull keyFile) "FELIX_ETCDKEYFILE=${keyFile}"
+        ]));
+        in {
             unitConfig = {
                 Description = "The calico cni plugin";
                 After = [
@@ -53,13 +93,17 @@ in {
 
             serviceConfig = {
                 User = "root";
-                Environment = ''
-                    ETCD_ENDPOINTS=${cfg.etcd.endpoints}
-                '';
+                EnvironmentFile = envFile;
+                KillMode = "process";
+                Restart = "on-failure";
+                LimitNOFILE = 32000;
             };
 
             preStart = "mkdir -p /var/run/calico";
             script = "${pkgs.calico-node} -felix";
+            wantedBy = [
+                "multi-user.target"
+            ];
         };
     };
 }

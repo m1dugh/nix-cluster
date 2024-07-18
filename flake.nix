@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    systems.url = "github:nix-systems/default";
+    systems.url = "github:nix-systems/default-linux";
 
     flake-utils = {
       url = "github:numtide/flake-utils";
@@ -12,7 +12,10 @@
   };
 
   outputs =
-    { nixpkgs
+    { 
+    self
+    , systems
+    , nixpkgs
     , flake-utils
     , ...
     }:
@@ -20,10 +23,7 @@
     let inherit (nixpkgs) lib;
     in {
         packages = 
-            (let systems = [
-                "x86_64-linux"
-            ];
-            in flake-utils.lib.eachSystemMap systems (system:
+            flake-utils.lib.eachDefaultSystemMap (system:
                 let pkgs = nixpkgs.legacyPackages.${system};
                 in {
                     calico-node = pkgs.stdenv.mkDerivation {
@@ -50,16 +50,29 @@
                                 ]}:''$LD_LIBRARY_PATH
                         '';
                     };
-            }));
+            });
       nixosModules = {
-        kubernetes = {
-            imports = [
-                ./modules/kubernetes
-            ];
-        };
+        kubernetes = (import ./modules/kubernetes);
       };
 
-      nixosConfigurations = { };
+      nixosConfigurations = 
+      let mkConfig = flake-utils.lib.eachDefaultSystemMap (system:
+          let localPackages = self.packages.${system};
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+                (final: prev: {
+                    inherit (localPackages) calico-node;
+                })
+            ];
+          };
+          in lib.nixosSystem {
+            inherit system pkgs;
+            specialArgs = {};
+          });
+      in {
+        cluster-master = mkConfig;
+      };
 
       formatter = flake-utils.lib.eachDefaultSystemMap
         (system: nixpkgs.legacyPackages.${system}.nixpkgs-fmt);
