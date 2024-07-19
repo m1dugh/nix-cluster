@@ -1,0 +1,46 @@
+{
+    config,
+    masterAddress,
+    lib,
+    ...
+}:
+with lib;
+let secrets = config.sops.secrets;
+in {
+    imports = [
+        ./secrets.nix
+    ];
+
+    midugh.gateway = {
+        enable = true;
+        internalInterface = "wg0";
+        externalInterface = "eth0";
+        ipAddresses = lists.singleton "10.200.0.1/24";
+        clients = {
+            "10.200.0.2" = "192.168.1.146";
+            "10.200.0.3" = "192.168.1.147";
+            "10.200.0.4" = "192.168.1.148";
+        };
+    };
+
+    networking.wireguard.interfaces."wg0" = {
+        privateKeyFile = secrets."gateway/wg0.key".path;
+
+        peers = [
+            {
+                # Midugh pc
+                publicKey = "5YtnXbwCv8i0Vy2WPo1DgM4fYgXib25tnRKVHPRz7m0=";
+                allowedIPs = [
+                    "10.200.0.100/32"
+                ];
+            }
+        ];
+    };
+
+    midugh.k8s-cluster = {
+        enable = true;
+        master = true;
+        worker = true;
+        kubeMasterAddress = masterAddress;
+    };
+}

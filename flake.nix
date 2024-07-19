@@ -5,10 +5,13 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     systems.url = "github:nix-systems/default-linux";
 
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+
     sops-nix = {
         url = "github:Mic92/sops-nix";
         inputs = {
             nixpkgs-stable.follows = "nixpkgs";
+            nixpkgs.follows = "nixpkgs";
         };
     };
 
@@ -24,6 +27,7 @@
     , nixpkgs
     , sops-nix
     , flake-utils
+    , nixos-hardware
     , ...
     }:
 
@@ -58,11 +62,37 @@
                         '';
                     };
             });
-      nixosModules = {
+      nixosModules = rec {
         kubernetes = {
             imports = [
                 ./modules/kubernetes
                 ./modules/calico
+            ];
+        };
+        gateway = {
+            imports = [
+                ./modules/gateway
+            ];
+        };
+
+        basic = {
+            imports = [
+                kubernetes
+                gateway
+                ./config
+            ];
+        };
+
+        master = {
+            imports = [
+                basic
+                ./config/master
+            ];
+        };
+
+        worker = {
+            imports = [
+                basic
             ];
         };
       };
@@ -75,9 +105,35 @@
         overlays = [
             (final: prev: {
                 inherit (localPackages) calico-node;
+                # Required for building raspi kernel
+                makeModulesClosure = x: prev.makeModulesClosure (x // {
+                    allowMissing = true;
+                });
             })
         ];
       });
+      in 
+      let makeRpiWorkerNodeConfig = {
+        ipAddress,
+        hostName
+      }: 
+      let system = "aarch64-linux"; 
+      in lib.nixosSystem {
+            inherit system;
+            pkgs = pkgsFor.${system};
+
+            specialArgs = {
+                inherit ipAddress hostName;
+                masterAddress = "192.168.1.145";
+            };
+
+            modules = [
+                self.nixosModules.worker
+                sops-nix.nixosModules.sops
+                nixos-hardware.nixosModules.raspberry-pi-4
+                "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+            ];
+        };
       in {
         cluster-master-vm =
         let system = "x86_64-linux";
@@ -87,25 +143,52 @@
             specialArgs = {
                 ipAddress = "192.168.1.145";
                 masterAddress = "192.168.1.145";
+                hostName = "cluster-master";
             };
 
+
             modules = [
-                self.nixosModules.kubernetes
+                self.nixosModules.master
                 sops-nix.nixosModules.sops
-                ./config
+                {
+                    users.users.root.password = "toor";
+                }
             ];
         };
+
         cluster-master = 
         let system = "aarch64-linux";
         in lib.nixosSystem {
             inherit system;
             pkgs = pkgsFor.${system};
 
+            specialArgs = {
+                ipAddress = "192.168.1.145";
+                masterAddress = "192.168.1.145";
+                hostName = "cluster-master";
+            };
+
             modules = [
-                self.nixosModules.kubernetes
+                self.nixosModules.master
                 sops-nix.nixosModules.sops
-                ./config
+                nixos-hardware.nixosModules.raspberry-pi-4
+                "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
             ];
+        };
+
+        cluster-node-1 = makeRpiWorkerNodeConfig {
+            ipAddress = "192.168.1.146";
+            hostName = "cluster-node-1";
+        };
+
+        cluster-node-2 = makeRpiWorkerNodeConfig {
+            ipAddress = "192.168.1.147";
+            hostName = "cluster-node-2";
+        };
+
+        cluster-node-3 = makeRpiWorkerNodeConfig {
+            ipAddress = "192.168.1.148";
+            hostName = "cluster-node-3";
         };
       };
 
