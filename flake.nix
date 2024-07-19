@@ -35,8 +35,11 @@
     in {
         packages = 
             flake-utils.lib.eachDefaultSystemMap (system:
-                let pkgs = nixpkgs.legacyPackages.${system};
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                    certs = pkgs.callPackage ./certs {};
                 in {
+                    inherit (certs) gen-certs;
                     calico-node = pkgs.stdenv.mkDerivation {
                         name = "calico-node";
                         src = ./modules/calico/bin;

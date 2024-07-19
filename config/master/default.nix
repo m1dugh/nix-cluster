@@ -34,11 +34,18 @@ in {
                     "10.200.0.100/32"
                 ];
             }
+            {
+                # Midugh phone
+                publicKey = "Hpb87xmb9sTOjT4t/13BITP6l6NzQdAjOaL9f1LABk8=";
+                allowedIPs = [
+                    "10.200.0.101/32"
+                ];
+            }
         ];
     };
 
     midugh.k8s-cluster = {
-        enable = true;
+        enable = false;
         master = true;
         worker = true;
         kubeMasterAddress = masterAddress;

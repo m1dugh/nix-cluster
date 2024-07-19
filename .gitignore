@@ -1,0 +1,8 @@
+/result
+
+/secrets/*
+
+# test machines disks
+*.qcow2
+
+/generated-certs/
