@@ -1,6 +1,7 @@
 {
     config,
     masterAddress,
+    hostName,
     masterAPIServerPort,
     lib,
     pkgs,
@@ -12,6 +13,10 @@ in {
     imports = [
         ./secrets.nix
     ];
+
+    networking.extraHosts = ''
+        ${masterAddress}    ${hostName}
+    '';
 
     midugh.gateway = {
         enable = true;
@@ -37,6 +42,8 @@ in {
             advertiseAddress = masterAddress;
         };
     };
+
+    networking.firewall.allowedTCPPorts = [ 8888 ];
 
     networking.wireguard.interfaces."wg0" = {
         privateKeyFile = secrets."gateway/wg0.key".path;

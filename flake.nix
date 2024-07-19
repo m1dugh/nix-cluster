@@ -130,6 +130,7 @@
                 inherit ipAddress hostName;
                 masterAddress = "192.168.1.145";
                 masterAPIServerPort = 6443;
+                masterHostName = "cluster-master";
             };
 
             modules = [
