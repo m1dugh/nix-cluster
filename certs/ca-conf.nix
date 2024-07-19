@@ -16,10 +16,16 @@ let
     '';
     makeNodeConfig = {
         name,
-        altNames ? []
+        altNames ? [],
+        address,
     }:
     let computedAltNames =
-        strings.concatStringsSep ", " (altNames ++ ["DNS:${name}" "IP:127.0.0.1"]);
+        strings.concatStringsSep ", "
+        (altNames ++ [
+            "DNS:${name}"
+            "IP:${address}"
+            "IP:127.0.0.1"
+        ]);
 in ''
 [${name}]
 distinguished_name = ${name}_distinguished_name

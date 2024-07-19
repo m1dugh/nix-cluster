@@ -1,7 +1,9 @@
 {
     config,
     masterAddress,
+    masterAPIServerPort,
     lib,
+    pkgs,
     ...
 }:
 with lib;
@@ -20,6 +22,19 @@ in {
             "10.200.0.2" = "192.168.1.146";
             "10.200.0.3" = "192.168.1.147";
             "10.200.0.4" = "192.168.1.148";
+        };
+    };
+
+    environment.systemPackages = with pkgs; [
+        kubectl
+        kubernetes
+    ];
+
+    services.kubernetes = {
+        roles = ["master" "node"];
+        apiserver = {
+            securePort = masterAPIServerPort;
+            advertiseAddress = masterAddress;
         };
     };
 
@@ -42,12 +57,5 @@ in {
                 ];
             }
         ];
-    };
-
-    midugh.k8s-cluster = {
-        enable = false;
-        master = true;
-        worker = true;
-        kubeMasterAddress = masterAddress;
     };
 }

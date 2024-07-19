@@ -39,7 +39,7 @@
                     pkgs = nixpkgs.legacyPackages.${system};
                     certs = pkgs.callPackage ./certs {};
                 in {
-                    inherit (certs) gen-certs;
+                    inherit (certs) gen-certs deploy-certs;
                     calico-node = pkgs.stdenv.mkDerivation {
                         name = "calico-node";
                         src = ./modules/calico/bin;
@@ -96,6 +96,7 @@
         worker = {
             imports = [
                 basic
+                ./config/worker
             ];
         };
       };
@@ -128,6 +129,7 @@
             specialArgs = {
                 inherit ipAddress hostName;
                 masterAddress = "192.168.1.145";
+                masterAPIServerPort = 6443;
             };
 
             modules = [
@@ -146,6 +148,7 @@
             specialArgs = {
                 ipAddress = "192.168.1.145";
                 masterAddress = "192.168.1.145";
+                masterAPIServerPort = 6443;
                 hostName = "cluster-master";
             };
 
@@ -168,6 +171,7 @@
             specialArgs = {
                 ipAddress = "192.168.1.145";
                 masterAddress = "192.168.1.145";
+                masterAPIServerPort = 6443;
                 hostName = "cluster-master";
             };
 

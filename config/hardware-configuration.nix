@@ -1,0 +1,7 @@
+{
+    lib,
+    ...
+}:
+{
+    swapDevices = lib.mkForce [];
+}
