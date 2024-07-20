@@ -1,4 +1,5 @@
 { nodeConfig
+, pkgs
 , clusterNodes
 , ...
 }:
@@ -6,6 +7,12 @@
   imports = [
     ./secrets.nix
     ./hardware-configuration.nix
+  ];
+
+  environment.systemPackages = with pkgs; [
+    openssl
+    htop
+    nload
   ];
 
   users.users.root.openssh.authorizedKeys.keys = [

@@ -7,6 +7,9 @@ with lib;
 let
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
+  etcdTls = etcdConfig.enable && etcdConfig.tls;
+  mkEtcdCertPath = name: "/var/lib/etcd/ssl/${name}";
+  etcdCaFile = mkEtcdCertPath "ca.pem";
   inherit ((pkgs.callPackage ./lib.nix { }).types) nodeConfigType;
 in
 {
@@ -55,6 +58,19 @@ in
         allowedTCPPorts = etcdPorts;
     };
 
+    systemd.services.etcd.environment = mkIf (etcdConfig.enable && etcdConfig.tls) (
+    let
+        inherit (cfg.nodeConfig) name;
+        getPath = name: mkDefault (mkEtcdCertPath name);
+    in {
+        ETCD_TRUSTED_CA_FILE = mkDefault etcdCaFile;
+        ETCD_CERT_FILE = getPath "${name}.pem";
+        ETCD_KEY_FILE = getPath "${name}-key.pem";
+        ETCD_PEER_TRUSTED_CA_FILE = mkDefault etcdCaFile;
+        ETCD_PEER_CERT_FILE = getPath "${name}-peer.pem";
+        ETCD_PEER_KEY_FILE = getPath "${name}-peer-key.pem";
+    });
+
     services.etcd = mkIf cfg.nodeConfig.etcd.enable (
       let
         inherit (cfg.nodeConfig) name;
@@ -102,6 +118,10 @@ in
             listenPeerUrls = peerUrls;
           }
         ))
+        (mkIf tls {
+            peerClientCertAuth = true;
+            clientCertAuth = true;
+        })
       ]
     );
   };

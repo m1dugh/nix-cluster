@@ -8,6 +8,7 @@
           peerPort = 2380;
           enable = true;
           openFirewall = true;
+          tls = true;
       };
     }
     {
@@ -17,6 +18,7 @@
             peerPort = 2380;
             enable = true;
             openFirewall = true;
+            tls = true;
         };
     }
   ];

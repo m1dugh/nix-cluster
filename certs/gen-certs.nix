@@ -1,4 +1,5 @@
 { pkgs
+, etcdHosts
 , lib
 , ...
 }:
@@ -41,6 +42,6 @@ mkdir -p $out
 cd $out
 
 # generates ca.csr, ca-key.pem and ca.pem
-${pkgs.callPackage ./etcd.nix (attrsets.recursiveUpdate defaultArgs {inherit hosts;})}
+${pkgs.callPackage ./etcd.nix (attrsets.recursiveUpdate defaultArgs { inherit etcdHosts; })}
 )
 ''

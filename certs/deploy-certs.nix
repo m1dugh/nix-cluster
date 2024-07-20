@@ -1,5 +1,5 @@
-{ nodes
-, master
+{ etcdHosts
+, etcdOwner ? "etcd"
 , lib
 , pkgs
 , ...
@@ -8,35 +8,20 @@ with lib;
 let
   scp = "${pkgs.openssh}/bin/scp";
   ssh = "${pkgs.openssh}/bin/ssh";
-  makeNodeConfig =
-    { name
-    , address
-    , ...
-    }: ''
-      printerr pushing files for ${name} via ${address}
-      ${ssh} root@${address} mkdir -p /var/lib/kubelet/
+  applyNodeConfig = nodes: fn: strings.concatStringsSep "\n" (builtins.map fn nodes);
+  pushEtcdCerts = {
+  name,
+  address,
+  ...
+  }: ''
+  folder=$out/etcd/
+  ${ssh} root@${address} mkdir -p /var/lib/etcd/ssl/
 
-      ${scp} $out/ca.crt root@${address}:/var/lib/kubelet/
-
-      ${scp} $out/${name}.crt \
-          root@${address}:/var/lib/kubelet/kubelet.crt
-      ${scp} $out/${name}.key \
-          root@${address}:/var/lib/kubelet/kubelet.key
-      printerr done !
-    '';
-  makeMasterConfig =
-    { address
-    , name
-    , ...
-    }: ''
-      mkdir -p /var/lib/kubernetes/secrets/
-      printerr deploying certificates to master ${name} at ${address}
-
-      ${scp} $out/ca.key $out/ca.crt \
-          $out/kube-api-server.key $out/kube-api-server.crt \
-          $out/service-accounts.key $out/service-accounts.crt \
-          root@${address}:/var/lib/kubernetes/secrets/
-    '';
+  ${scp} $folder/ca.pem $folder/${name}.pem $folder/${name}-key.pem \
+      $folder/${name}-peer.pem $folder/${name}-peer-key.pem \
+      root@${address}:/var/lib/etcd/ssl/
+  ${ssh} root@${address} chown -R ${etcdOwner}:${etcdOwner} /var/lib/etcd/ssl/
+  '';
 in
 pkgs.writeShellScriptBin "deploy-certs" (''
   set -e
@@ -47,6 +32,5 @@ pkgs.writeShellScriptBin "deploy-certs" (''
       echo $* >&2
   }
 ''
-+ strings.concatStringsSep "\n" (builtins.map makeNodeConfig nodes)
-  + makeMasterConfig master
++ applyNodeConfig etcdHosts pushEtcdCerts
 )

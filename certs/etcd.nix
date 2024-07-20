@@ -1,7 +1,7 @@
 {
     pkgs,
     lib,
-    hosts ? [], # Hosts is a list containing for each node a cn and a list of altName
+    etcdHosts,
     cfssl,
     cfssljson,
     ...
@@ -18,26 +18,29 @@ let
         defaultUsages = [
             "signing"
             "key encipherment"
-            "server auth"
         ];
     in {
-        server = defaultUsages;
-        client = defaultUsages;
-        peer = defaultUsages ++ ["client auth"];
+        server = defaultUsages ++ ["server auth"];
+        client = defaultUsages ++ ["client auth"];
+        peer = defaultUsages ++ ["client auth" "server auth"];
     });
     clientCsr = mkCsr "client-csr" {
         cn = "client";
     };
-    genHost = host: 
-    let csr = mkCsr host.cn {
-        inherit (host) cn;
-        hosts = [ host.cn ] ++ host.altNames;
+    genHost = {
+        cn,
+        altNames,
+        ...
+    }: 
+    let csr = mkCsr cn {
+        inherit cn;
+        hosts = [ cn ] ++ altNames;
     };
     in ''
-    genCert server ${profile} ${host.cn} ${csr}
-    genCert peer ${profile} ${host.cn}-peer ${csr}
+    genCert server ${profile} ${cn} ${csr}
+    genCert peer ${profile} ${cn}-peer ${csr}
     '';
-    commands = builtins.map genHost hosts;
+    commands = builtins.map genHost etcdHosts;
 in (''
 mkdir -p etcd
 (
