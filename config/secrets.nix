@@ -1,7 +1,7 @@
 {
-    sops.defaultSopsFile = ../secrets/secrets.yaml;
+  sops.defaultSopsFile = ../secrets/secrets.yaml;
 
-    sops.age.sshKeyPaths = [
-        ../secrets/servers.key
-    ];
+  sops.age.sshKeyPaths = [
+    ../secrets/servers.key
+  ];
 }

@@ -1,7 +1,6 @@
-{
-    lib,
-    ...
+{ lib
+, ...
 }:
 {
-    swapDevices = lib.mkForce [];
+  swapDevices = lib.mkForce [ ];
 }
