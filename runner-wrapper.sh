@@ -9,7 +9,7 @@ fi
 
 file="./secrets/servers.key"
 
-if ! [ -d "$file" ]; then
+if ! [ -f "$file" ]; then
     echo "could not find file $file" >&2
     exit 1
 fi
