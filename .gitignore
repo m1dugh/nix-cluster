@@ -1,6 +1,6 @@
 /result
 
-/secrets/*
+/secrets/servers.key
 
 # test machines disks
 *.qcow2

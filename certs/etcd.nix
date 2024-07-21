@@ -4,6 +4,7 @@
     etcdHosts,
     cfssl,
     cfssljson,
+    jq,
     ...
 }:
 with lib;
@@ -51,5 +52,7 @@ genCa ${caConf}
 '' + strings.concatStringsSep "\n" commands
 + ''
 genCert client ${profile} client ${clientCsr}
+
 )
+toJsonCerts etcd
 '')

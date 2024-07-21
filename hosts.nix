@@ -10,6 +10,8 @@
           openFirewall = true;
           tls = true;
       };
+      worker = true;
+      master = true;
     }
     {
         name = "cluster-master-2";
@@ -20,6 +22,8 @@
             openFirewall = true;
             tls = true;
         };
+        worker = true;
+        master = true;
     }
   ];
 }

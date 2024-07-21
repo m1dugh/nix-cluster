@@ -14,6 +14,7 @@ let
   };
 in
 {
+    applyNodeConfig = nodes: fn: strings.concatStringsSep "\n" (builtins.map fn nodes);
     mkProfile = name: profiles:
     utils.writeJSONText name {
         signing = {

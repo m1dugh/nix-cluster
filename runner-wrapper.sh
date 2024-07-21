@@ -7,7 +7,7 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-file="./secrets/"
+file="./secrets/servers.key"
 
 if ! [ -d "$file" ]; then
     echo "could not find file $file" >&2

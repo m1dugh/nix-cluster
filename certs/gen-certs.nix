@@ -1,25 +1,17 @@
 { pkgs
 , etcdHosts
+, masterHosts
+, workerHosts
 , lib
 , ...
 }:
 with lib;
 let
-    hosts = [
-        {
-            cn = "cluster-master-1";
-            altNames = [ "192.168.1.145" ];
-        }
-        {
-            cn = "cluster-master-2";
-            altNames = [ "192.168.1.146" ];
-        }
-    ];
-  inherit (pkgs.callPackage ./lib.nix {}) mkCsr;
   cfssl = "${pkgs.cfssl}/bin/cfssl";
   cfssljson = "${pkgs.cfssl}/bin/cfssljson";
+  jq = "${pkgs.jq}/bin/jq";
   defaultArgs = {
-    inherit cfssljson cfssl;
+    inherit cfssljson cfssl jq;
   };
 in pkgs.writeShellScriptBin "gen-certs" ''
 function genCert () {
@@ -36,6 +28,23 @@ function genCa () {
     ${cfssl} gencert -initca $caconf | ${cfssljson} -bare ca -
 }
 
+function toJsonCerts () {
+    name="$1"
+    folder=$name
+    filename="certs.json"
+    tmpfile="$filename.tmp"
+
+    if [ ! -f $filename ]; then
+        echo '{}' > $filename
+    fi
+    pushd $folder > /dev/null
+    for f in *.pem *-key.pem *.csr; do
+        ${jq} --rawfile content "$f" ".$name.\"$f\"=\$content" ../$filename  > ../$tmpfile
+        mv ../$tmpfile ../$filename
+    done
+    popd > /dev/null
+}
+
 out=''${1:-./generated-certs}
 mkdir -p $out
 (
@@ -43,5 +52,6 @@ cd $out
 
 # generates ca.csr, ca-key.pem and ca.pem
 ${pkgs.callPackage ./etcd.nix (attrsets.recursiveUpdate defaultArgs { inherit etcdHosts; })}
+${pkgs.callPackage ./kubernetes.nix (attrsets.recursiveUpdate defaultArgs { inherit masterHosts workerHosts ; })}
 )
 ''

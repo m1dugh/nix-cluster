@@ -2,7 +2,7 @@ keys:
   - &user_midugh EB3C07037A5C7AE7E622D5597FE4C52C2C91DBD2
   - &host age1d8c7ggdjf3pp9hveexxsr9el245jnqmlc7pl9a48r32fw56tvfusy2t7d7
 creation_rules:
-  - path_regex: secrets/[^/]+\.yaml
+  - path_regex: secrets/[^/]+\.(json|yaml)
     key_groups:
       - pgp:
         - *user_midugh
