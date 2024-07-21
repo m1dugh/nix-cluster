@@ -36,17 +36,11 @@ in
     }: utils.writeJSONText name (attrsets.recursiveUpdate csrDefaults {
         CN = cn;
         inherit hosts;
-        names =
-        let cfg = mkMerge [
-        (mkIf (organization != null) {
+        names = [(attrsets.filterAttrs (n: v: v != null) {
             O = organization;
-        })
-        {
             C = country;
             L = location;
             ST = state;
-        }
-        ];
-        in lib.lists.singleton cfg;
+        })];
     });
 }

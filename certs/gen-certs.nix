@@ -20,10 +20,18 @@ function genCert () {
     outname=$3
     csrjson=$4
 
+    if [ -f $outname.pem ]; then
+        return 0
+    fi
+
     ${cfssl} gencert -ca=ca.pem -ca-key=ca-key.pem -config=$profileconf -profile=$profilename $csrjson | ${cfssljson} -bare $outname
 }
 
 function genCa () {
+    if [ -f ca.pem ]; then
+        return 0
+    fi
+
     caconf=$1
     ${cfssl} gencert -initca $caconf | ${cfssljson} -bare ca -
 }
@@ -38,7 +46,7 @@ function toJsonCerts () {
         echo '{}' > $filename
     fi
     pushd $folder > /dev/null
-    for f in *.pem *-key.pem *.csr; do
+    for f in *.pem *-key.pem; do
         ${jq} --rawfile content "$f" ".$name.\"$f\"=\$content" ../$filename  > ../$tmpfile
         mv ../$tmpfile ../$filename
     done

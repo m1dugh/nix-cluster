@@ -68,7 +68,13 @@ in
       cri-tools
     ]);
 
-    virtualisation.containerd.enable = true;
+    virtualisation.containerd = {
+        enable = true;
+        settings.plugins."io.containerd.grpc.v1.cri".containerd = {
+            snapshotter = "overlayfs";
+            runtimes.runc.options.SystemdCgroup = true;
+        };
+    };
 
     networking.firewall =
     let
