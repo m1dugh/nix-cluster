@@ -1,4 +1,5 @@
 { nodeConfig
+, apiserver
 , pkgs
 , clusterNodes
 , ...
@@ -47,7 +48,7 @@
 
   midugh.k8s-cluster = {
     enable = true;
-    inherit nodeConfig clusterNodes;
+    inherit nodeConfig clusterNodes apiserver;
   };
 
   system.stateVersion = "24.05";

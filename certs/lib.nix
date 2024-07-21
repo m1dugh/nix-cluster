@@ -38,7 +38,7 @@ in
         inherit hosts;
         names =
         let cfg = mkMerge [
-        (mkIf (! isNull organization) {
+        (mkIf (organization != null) {
             O = organization;
         })
         {

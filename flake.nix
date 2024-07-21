@@ -39,7 +39,7 @@
             certs = pkgs.callPackage ./certs { };
           in
           {
-            inherit (certs) gen-certs deploy-certs;
+            inherit (certs) gen-certs build-config;
             calico-node = pkgs.stdenv.mkDerivation {
               name = "calico-node";
               src = ./modules/calico/bin;
@@ -130,14 +130,14 @@
               ] ++ extraModules;
             };
           makeRpiConfig = args: makeRpiConfigCustom args {};
-          inherit (import ./hosts.nix) masterAddress nodes;
+          inherit (import ./hosts.nix) nodes apiserver;
           masterNode = builtins.head nodes;
           basicNodes = builtins.tail nodes;
         in
         lib.recursiveUpdate
         {
             "${masterNode.name}" = makeRpiConfigCustom {
-                inherit masterAddress;
+                inherit apiserver;
                 nodeConfig = masterNode;
                 clusterNodes = nodes;
             } {
@@ -149,7 +149,7 @@
         (builtins.listToAttrs (builtins.map (nodeConfig: {
             inherit (nodeConfig) name;
             value = makeRpiConfig {
-                inherit masterAddress nodeConfig;
+                inherit apiserver nodeConfig;
                 clusterNodes = nodes;
             };
         }) basicNodes));

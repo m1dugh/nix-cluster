@@ -7,11 +7,29 @@ with lib;
 let
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
-  inherit ((pkgs.callPackage ./lib.nix { }).types) nodeConfigType;
+  inherit (cfg.nodeConfig) master worker;
+  k8sNode = master || worker;
+  inherit ((pkgs.callPackage ./lib.nix {}).types) nodeConfigType apiserverConfigType etcdConfigType;
 in
 {
   options.midugh.k8s-cluster = {
     enable = mkEnableOption "k8s cluster";
+    etcd = mkOption {
+        type = etcdConfigType;
+        description = "The config of the etcd service";
+        default = {
+            port = 2379;
+        };
+    };
+
+    apiserver = mkOption {
+        type = apiserverConfigType;
+        description = "The config of the k8s service";
+        default = {
+            port = 6443;
+        };
+    };
+
     clusterNodes = mkOption {
       type = types.listOf nodeConfigType;
       description = ''
@@ -43,11 +61,12 @@ in
     ];
 
 
-    environment.systemPackages = with pkgs; [
+    environment.systemPackages = with pkgs;
+    (lists.optionals k8sNode [
       kubectl
       kubernetes
       cri-tools
-    ];
+    ]);
 
     virtualisation.containerd.enable = true;
 
@@ -55,9 +74,10 @@ in
     let
         etcdFirewall = etcdConfig.enable && etcdConfig.openFirewall;
         etcdPorts = lists.optional etcdFirewall etcdConfig.port ++ lists.optional (etcdFirewall && (! isNull etcdConfig.peerPort)) etcdConfig.peerPort;
+        k8sPorts = (lists.optional master 6443);
     in
     {
-        allowedTCPPorts = etcdPorts;
+        allowedTCPPorts = etcdPorts ++ k8sPorts;
     };
 
     services.etcd = mkIf cfg.nodeConfig.etcd.enable (

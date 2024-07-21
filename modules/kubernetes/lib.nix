@@ -1,10 +1,44 @@
-{ config
-, lib
+{ lib
 , ...
 }:
 with lib;
-{
+let
+    mkEnableTrueOption = msg: mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether to enable ${msg}";
+    };
+in {
+    mkEtcdEndpoint = {
+        address,
+        etcd,
+        ...
+    }:
+    let
+        inherit (etcd) tls port;
+        scheme = if tls then "https" else "http";
+    in "${scheme}://${address}:${toString port}";
   types = rec {
+    apiserverConfigType = types.submodule({
+        options = {
+            address = mkOption {
+                type = types.str;
+                description = "The address of the service";
+            };
+
+            port = mkOption {
+                type = types.int;
+                description = "The port for the service";
+            };
+
+            serviceClusterIpRange = mkOption {
+                type = types.str;
+                default = "10.32.0.0/24";
+
+            };
+        };
+    });
+
     nodeConfigType = types.submodule ({
       options = {
         name = mkOption {
@@ -42,7 +76,7 @@ with lib;
             default = false;
         };
 
-        tls = mkEnableOption "enable tls in cluster";
+        tls = mkEnableTrueOption "tls for this node";
 
         port = mkOption {
           type = types.int;

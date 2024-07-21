@@ -6,3 +6,5 @@
 *.qcow2
 
 /generated-certs/
+
+/admin.kubeconfig
