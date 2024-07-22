@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs-old.url = "github:NixOS/nixpkgs/nixos-23.11";
     systems.url = "github:nix-systems/default-linux";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
@@ -24,6 +25,7 @@
   outputs =
     { self
     , nixpkgs
+    , nixpkgs-old
     , sops-nix
     , flake-utils
     , nixos-hardware
@@ -39,7 +41,7 @@
             certs = pkgs.callPackage ./certs { };
           in
           {
-            inherit (certs) gen-certs build-config;
+            inherit (certs) gen-certs build-config deploy-certs;
             calico-node = pkgs.stdenv.mkDerivation {
               name = "calico-node";
               src = ./modules/calico/bin;
@@ -94,12 +96,14 @@
           pkgsFor = flake-utils.lib.eachDefaultSystemMap (system:
             let
               localPackages = self.packages.${system};
+              oldPackages = nixpkgs-old.legacyPackages.${system};
             in
             import nixpkgs {
               inherit system;
               overlays = [
                 (final: prev: {
                   inherit (localPackages) calico-node;
+                  inherit (oldPackages) containerd;
                   # Required for building raspi kernel
                   makeModulesClosure = x: prev.makeModulesClosure (x // {
                     allowMissing = true;
@@ -109,9 +113,9 @@
             }
           );
           makeRpiConfigCustom =
-              args:
-              { extraModules ? []
-              }:
+            args:
+            { extraModules ? [ ]
+            }:
             let
               system = "aarch64-linux";
             in
@@ -129,30 +133,34 @@
                 self.nixosModules.raspi
               ] ++ extraModules;
             };
-          makeRpiConfig = args: makeRpiConfigCustom args {};
+          makeRpiConfig = args: makeRpiConfigCustom args { };
           inherit (import ./hosts.nix) nodes apiserver;
           masterNode = builtins.head nodes;
           basicNodes = builtins.tail nodes;
         in
         lib.recursiveUpdate
-        {
-            "${masterNode.name}" = makeRpiConfigCustom {
+          {
+            "${masterNode.name}" = makeRpiConfigCustom
+              {
                 inherit apiserver;
                 nodeConfig = masterNode;
                 clusterNodes = nodes;
-            } {
+              }
+              {
                 extraModules = [
-                    ./config/master
+                  ./config/master
                 ];
-            };
-        }
-        (builtins.listToAttrs (builtins.map (nodeConfig: {
-            inherit (nodeConfig) name;
-            value = makeRpiConfig {
+              };
+          }
+          (builtins.listToAttrs (builtins.map
+            (nodeConfig: {
+              inherit (nodeConfig) name;
+              value = makeRpiConfig {
                 inherit apiserver nodeConfig;
                 clusterNodes = nodes;
-            };
-        }) basicNodes));
+              };
+            })
+            basicNodes));
 
       formatter = flake-utils.lib.eachDefaultSystemMap
         (system: nixpkgs.legacyPackages.${system}.nixpkgs-fmt);

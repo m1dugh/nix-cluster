@@ -45,3 +45,11 @@ The subnet for the vpn is `10.200.0.0/24`.
 The IP Addresses for the nodes are
 `10.200.0.1-10.200.0.99`, and the remaining range
 is for other clients.
+
+## Deploying secrets
+
+To deploy secrets, you need to upload an ssh key that has been used to encrypt
+the secrets onto the node.
+
+Push key `secrets/servers.key` to `/var/lib/nixos/servers.key` on the remote
+node to allow it.
