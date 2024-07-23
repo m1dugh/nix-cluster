@@ -5,7 +5,7 @@
 }:
 with lib;
 let
-  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint;
+  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress;
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
   inherit (cfg.nodeConfig) master worker;
@@ -88,7 +88,7 @@ in
     networking.firewall =
       let
         etcdFirewall = etcdConfig.enable && etcdConfig.openFirewall;
-        etcdPorts = lists.optional etcdFirewall etcdConfig.port ++ lists.optional (etcdFirewall && (! isNull etcdConfig.peerPort)) etcdConfig.peerPort;
+        etcdPorts = lists.optionals etcdFirewall [etcdConfig.port etcdConfig.peerPort];
         k8sWorkerPorts = lists.optionals worker (with config.services.kubernetes; [
             controllerManager.securePort
             kubelet.port
@@ -197,21 +197,15 @@ in
       let
         inherit (cfg.nodeConfig) name;
         inherit (cfg.nodeConfig.etcd) port peerPort tls;
-        getAddress = nodeConfig:
-          let
-            etcdAddress = nodeConfig.etcd.address;
-          in
-          if isNull etcdAddress then
-            nodeConfig.address
-          else
-            etcdAddress
-        ;
-        address = getAddress cfg.nodeConfig;
-        peers = builtins.filter (node: node.etcd.enable && (! isNull node.etcd.peerPort)) cfg.clusterNodes;
-        url = "${mkScheme tls}://${address}:${toString port}";
+        address = mkEtcdAddress cfg.nodeConfig;
+        peers = getEtcdNodes cfg.clusterNodes;
+        url = mkEtcdEndpoint cfg.nodeConfig;
       in
       lib.mkMerge [
-        {
+        (
+         let
+             peerUrls = lists.singleton "${mkScheme tls}://${address}:${toString peerPort}";
+         in {
           enable = true;
           inherit name;
           listenClientUrls = [
@@ -219,8 +213,20 @@ in
             "http://127.0.0.1:${toString port}"
           ];
 
+          initialCluster = builtins.map
+          (peer:
+           let
+           inherit (peer.etcd) peerPort tls;
+           address = mkEtcdAddress peer;
+           in
+           "${peer.name}=${mkScheme tls}://${address}:${toString peerPort}")
+          peers;
+
+          initialAdvertisePeerUrls = peerUrls;
+          listenPeerUrls = peerUrls;
+
           advertiseClientUrls = lists.singleton url;
-        }
+        })
         (mkIf tls {
           peerClientCertAuth = true;
           clientCertAuth = true;
@@ -231,24 +237,6 @@ in
           peerCertFile = mkEtcdCert "etcd-peer.pem";
           peerKeyFile = mkEtcdCert "etcd-peer-key.pem";
         })
-        (mkIf (! isNull peerPort) (
-          let
-            peerUrls = lists.singleton "${mkScheme tls}://${address}:${toString peerPort}";
-          in
-          {
-            initialCluster = builtins.map
-              (peer:
-                let
-                  inherit (peer.etcd) peerPort tls;
-                  address = getAddress peer;
-                in
-                "${peer.name}=${mkScheme tls}://${address}:${toString peerPort}")
-              peers;
-
-            initialAdvertisePeerUrls = peerUrls;
-            listenPeerUrls = peerUrls;
-          }
-        ))
       ]
     );
   };

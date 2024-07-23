@@ -77,8 +77,8 @@ in
         };
 
         peerPort = mkOption {
-          type = types.nullOr types.int;
-          default = null;
+          type = types.int;
+          default = 2380;
           description = "The port for peer communication";
         };
       };

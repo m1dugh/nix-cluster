@@ -9,8 +9,10 @@ with lib;
 let
   scp = "${pkgs.openssh}/bin/scp";
   ssh = "${pkgs.openssh}/bin/ssh";
-  k8sCertPath = "/var/lib/kubernetes/ssl/";
-  etcdCertPath = "/var/lib/etcd/ssl/";
+  k8sDataPath = "/var/lib/kubernetes/";
+  k8sCertPath = "${k8sDataPath}/ssl/";
+  etcdDataPath = "/var/lib/etcd/";
+  etcdCertPath = "${etcdDataPath}/ssl/";
   mkMasterNode =
     { address
     , ...
@@ -67,6 +69,7 @@ function uploadEtcdCerts () {
     url="$1"
     node="$2"
     remoteMkdir $url ${etcdCertPath}
+    ${ssh} $url chown etcd:etcd ${etcdDataPath}
 
     ${scp} $etcdDir/ca.pem $url:${etcdCertPath}
     ${scp} $etcdDir/$node.pem $url:${etcdCertPath}/etcd.pem
@@ -82,6 +85,7 @@ function uploadEtcdCerts () {
 function uploadMasterCerts () {
     url="$1"
     remoteMkdir $url ${k8sCertPath}
+    ${ssh} $url chown kubernetes:kubernetes ${k8sDataPath}
 
     ${scp} \
         $k8sDir/ca-key.pem $k8sDir/ca.pem \
@@ -101,6 +105,7 @@ function uploadWorkerCerts () {
     url="$1"
     node="$2"
     remoteMkdir $url ${k8sCertPath}
+    ${ssh} $url chown kubernetes:kubernetes ${k8sDataPath}
 
     ${scp} $k8sDir/ca.pem \
         $k8sDir/kube-controller-manager.pem $k8sDir/kube-controller-manager-key.pem \

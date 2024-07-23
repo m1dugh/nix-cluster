@@ -13,11 +13,20 @@ rec {
     in
     enable && tls;
 
+  mkEtcdAddress = {
+    address,
+    etcd,
+    ...
+  }: if etcd.address != null then etcd.address else address;
+
   mkEtcdEndpoint =
     { address
     , etcd
     , ...
-    }: "${mkScheme etcd.tls}://${address}:${toString etcd.port}";
+    }@node:
+    let
+        address = mkEtcdAddress node;
+    in "${mkScheme etcd.tls}://${address}:${toString etcd.port}";
 
   mkApiserverAddress =
     { address

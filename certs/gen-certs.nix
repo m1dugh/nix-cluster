@@ -1,7 +1,4 @@
 { pkgs
-, etcdHosts
-, masterHosts
-, workerHosts
 , lib
 , ...
 }@inputs:
@@ -15,6 +12,11 @@ let
   };
 in
 pkgs.writeShellScriptBin "gen-certs" ''
+    function printErr()
+    {
+        echo "$@" >&2
+    }
+
   function genCert () {
       profilename=$1
       profileconf=$2
@@ -22,6 +24,7 @@ pkgs.writeShellScriptBin "gen-certs" ''
       csrjson=$4
 
       if [ -f $outname.pem ]; then
+          printErr "skipping generation of $outname for ''${PWD##*/}"
           return 0
       fi
 
@@ -30,6 +33,7 @@ pkgs.writeShellScriptBin "gen-certs" ''
 
   function genCa () {
       if [ -f ca.pem ]; then
+          printErr "skipping generation of ca for ''${PWD##*/}"
           return 0
       fi
 
@@ -66,7 +70,7 @@ pkgs.writeShellScriptBin "gen-certs" ''
   cd $out
 
   # generates ca.csr, ca-key.pem and ca.pem
-  ${pkgs.callPackage ./etcd.nix (attrsets.recursiveUpdate defaultArgs { inherit etcdHosts; })}
-  ${pkgs.callPackage ./kubernetes.nix (attrsets.recursiveUpdate defaultArgs { inherit masterHosts workerHosts ; })}
+  ${pkgs.callPackage ./etcd.nix defaultArgs}
+  ${pkgs.callPackage ./kubernetes.nix defaultArgs}
   )
 ''
