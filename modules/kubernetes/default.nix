@@ -89,10 +89,17 @@ in
       let
         etcdFirewall = etcdConfig.enable && etcdConfig.openFirewall;
         etcdPorts = lists.optional etcdFirewall etcdConfig.port ++ lists.optional (etcdFirewall && (! isNull etcdConfig.peerPort)) etcdConfig.peerPort;
-        k8sPorts = (lists.optional master 6443);
+        k8sWorkerPorts = lists.optionals worker (with config.services.kubernetes; [
+            controllerManager.securePort
+            kubelet.port
+        ]);
+        k8sMasterPorts = lists.optionals worker (with config.services.kubernetes; [
+            scheduler.port
+            apiserver.securePort
+        ]);
       in
       {
-        allowedTCPPorts = etcdPorts ++ k8sPorts;
+        allowedTCPPorts = etcdPorts ++ k8sWorkerPorts ++ k8sMasterPorts;
       };
 
     services.kubernetes = mkIf k8sNode (
@@ -108,6 +115,7 @@ in
         };
       in
       {
+        clusterCidr = "10.96.0.0/16";
         proxy = mkConfig worker "kube-proxy";
         controllerManager = mkConfig worker "kube-controller-manager";
         scheduler = mkConfig master "kube-scheduler";
@@ -139,7 +147,13 @@ in
           }
         );
 
-        kubelet = mkIf worker (attrsets.recursiveUpdate (mkConfig worker "kubelet") {
+        kubelet = mkIf worker {
+          enable = true;
+          kubeconfig = {
+            inherit server caFile;
+            certFile = mkDefault (mkK8sCert "kubelet.pem");
+            keyFile = mkDefault (mkK8sCert "kubelet-key.pem");
+          };
 
           containerRuntimeEndpoint = "unix:///run/containerd/containerd.sock";
           extraOpts = "--fail-swap-on=false";
@@ -174,7 +188,7 @@ in
               }
             ];
           };
-        });
+        };
       }
     );
 

@@ -1,4 +1,6 @@
-{
+let
+    enable = false;
+in {
   apiserver = {
     address = "192.168.1.145";
     port = 6443;
@@ -10,24 +12,24 @@
       address = "192.168.1.145";
       etcd = {
         peerPort = 2380;
-        enable = true;
+        enable = enable;
         openFirewall = true;
         tls = true;
       };
-      worker = true;
-      master = true;
+      worker = enable;
+      master = enable;
     }
     {
       name = "cluster-master-2";
       address = "192.168.1.146";
       etcd = {
         peerPort = 2380;
-        enable = true;
+        enable = enable;
         openFirewall = true;
         tls = true;
       };
-      worker = true;
-      master = true;
+      worker = enable;
+      master = enable;
     }
   ];
 }
