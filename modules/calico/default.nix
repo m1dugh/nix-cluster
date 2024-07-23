@@ -4,10 +4,10 @@
 , ...
 }:
 with lib;
-let cfg = config.services.calico;
+let cfg = config.services.calico-felix;
 in {
-  options.services.calico = {
-    enable = mkEnableOption "calico";
+  options.services.calico-felix = {
+    enable = mkEnableOption "calico-felix agent service";
     etcd = mkOption {
       description = "The config for etcd";
       type = types.submodule ({ ... }: {
@@ -23,27 +23,27 @@ in {
           };
 
           caFile = mkOption {
-            type = types.nullOr types.str;
+            type = types.nullOr types.path;
             description = "The path to the etcd server cert, only required if using https";
             default = null;
 
-            example = "./path/to/ca.crt";
+            example = literalExpression "./path/to/ca.crt";
           };
 
           certFile = mkOption {
-            type = types.nullOr types.str;
+            type = types.nullOr types.path;
             description = "The path to certificate for client auth";
             default = null;
 
-            example = "./path/to/etcd.crt";
+            example = literalExpression "./path/to/etcd.crt";
           };
 
           keyFile = mkOption {
-            type = types.nullOr types.str;
+            type = types.nullOr types.path;
             description = "The path to key for client auth";
             default = null;
 
-            example = "./path/to/etcd.pem";
+            example = literalExpression "./path/to/etcd.pem";
           };
         };
       });
@@ -61,12 +61,12 @@ in {
 
     environment.systemPackages = with pkgs; [
       calicoctl
-      calico-node
     ];
 
-    systemd.services.calico =
+    systemd.services.calico-felix =
       let
         content = with cfg.etcd; ''
+          NIX_LD=${pkgs.nix-ld}/lib/ld.so
           FELIX_DATASTORETYPE=etcdv3
           FELIX_ETCDENDPOINTS=${strings.concatStringsSep "," endpoints}
         ''
@@ -82,8 +82,12 @@ in {
         envFile = pkgs.writeText "calico.env" content;
       in
       {
+        path = with pkgs; [
+            calico-node
+            nix-ld
+        ];
         unitConfig = {
-          Description = "The calico cni plugin";
+          Description = "Calico Felix agent";
           After = [
             "syslog.target"
             "network.target"
@@ -99,7 +103,7 @@ in {
         };
 
         preStart = "mkdir -p /var/run/calico";
-        script = "${pkgs.calico-node} -felix";
+        script = "${pkgs.calico-node}/bin/calico-node -felix";
         wantedBy = [
           "multi-user.target"
         ];

@@ -15,6 +15,7 @@ let
   mkEtcdCert = path: "/var/lib/etcd/ssl/${path}";
   server = mkApiserverAddress cfg.apiserver;
   etcdNodes = getEtcdNodes cfg.clusterNodes;
+  etcdEndpoints = builtins.map mkEtcdEndpoint etcdNodes;
 in
 {
   options.midugh.k8s-cluster = {
@@ -102,6 +103,15 @@ in
         allowedTCPPorts = etcdPorts ++ k8sWorkerPorts ++ k8sMasterPorts;
       };
 
+    services.calico-felix = mkIf worker {
+        enable = true;
+        etcd = {
+            endpoints = etcdEndpoints;
+            keyFile = mkK8sCert "etcd-client-key.pem";
+            certFile = mkK8sCert "etcd-client.pem";
+            caFile = mkK8sCert "etcd-ca.pem";
+        };
+    };
     services.kubernetes = mkIf k8sNode (
       let
         caFile = mkK8sCert "ca.pem";
@@ -120,15 +130,12 @@ in
         controllerManager = mkConfig worker "kube-controller-manager";
         scheduler = mkConfig master "kube-scheduler";
 
-        apiserver = mkIf master (
-          let
-            servers = builtins.map mkEtcdEndpoint etcdNodes;
-          in
+        apiserver = mkIf master
           {
             enable = true;
             clientCaFile = caFile;
             etcd = {
-              inherit servers;
+              servers = etcdEndpoints;
               keyFile = mkK8sCert "etcd-client-key.pem";
               certFile = mkK8sCert "etcd-client.pem";
               caFile = mkK8sCert "etcd-ca.pem";
@@ -144,11 +151,13 @@ in
             inherit (cfg.apiserver) serviceClusterIpRange;
             tlsCertFile = mkK8sCert "kube-api-server.pem";
             tlsKeyFile = mkK8sCert "kube-api-server-key.pem";
-          }
-        );
+          };
 
         kubelet = mkIf worker {
           enable = true;
+
+          taints = {};
+
           kubeconfig = {
             inherit server caFile;
             certFile = mkDefault (mkK8sCert "kubelet.pem");

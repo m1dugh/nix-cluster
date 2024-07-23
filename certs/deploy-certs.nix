@@ -90,6 +90,7 @@ function uploadMasterCerts () {
     ${scp} \
         $k8sDir/ca-key.pem $k8sDir/ca.pem \
         $k8sDir/kube-api-server-key.pem $k8sDir/kube-api-server.pem \
+        $k8sDir/kube-scheduler-key.pem $k8sDir/kube-scheduler.pem \
         $k8sDir/service-accounts-key.pem $k8sDir/service-accounts.pem \
         $url:${k8sCertPath}/
 
