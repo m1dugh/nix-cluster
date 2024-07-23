@@ -93,7 +93,7 @@ in
           controllerManager.securePort
           kubelet.port
         ]);
-        k8sMasterPorts = lists.optionals worker (with config.services.kubernetes; [
+        k8sMasterPorts = lists.optionals master (with config.services.kubernetes; [
           scheduler.port
           apiserver.securePort
         ]);
