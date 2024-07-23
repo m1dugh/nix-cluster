@@ -48,7 +48,6 @@
         kubernetes = {
           imports = [
             ./modules/kubernetes
-            ./modules/calico
           ];
         };
         gateway = {

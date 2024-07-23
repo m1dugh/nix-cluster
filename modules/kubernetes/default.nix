@@ -53,6 +53,10 @@ in
     };
   };
 
+  imports = [
+    ./calico.nix
+  ];
+
   config = mkIf cfg.enable {
 
     assertions = [

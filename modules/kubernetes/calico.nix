@@ -66,7 +66,6 @@ in {
     systemd.services.calico-felix =
       let
         content = with cfg.etcd; ''
-          NIX_LD=${pkgs.nix-ld}/lib/ld.so
           FELIX_DATASTORETYPE=etcdv3
           FELIX_ETCDENDPOINTS=${strings.concatStringsSep "," endpoints}
         ''
@@ -84,7 +83,6 @@ in {
       {
         path = with pkgs; [
             calico-node
-            nix-ld
         ];
         unitConfig = {
           Description = "Calico Felix agent";
