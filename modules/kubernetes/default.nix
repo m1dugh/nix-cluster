@@ -88,14 +88,14 @@ in
     networking.firewall =
       let
         etcdFirewall = etcdConfig.enable && etcdConfig.openFirewall;
-        etcdPorts = lists.optionals etcdFirewall [etcdConfig.port etcdConfig.peerPort];
+        etcdPorts = lists.optionals etcdFirewall [ etcdConfig.port etcdConfig.peerPort ];
         k8sWorkerPorts = lists.optionals worker (with config.services.kubernetes; [
-            controllerManager.securePort
-            kubelet.port
+          controllerManager.securePort
+          kubelet.port
         ]);
         k8sMasterPorts = lists.optionals worker (with config.services.kubernetes; [
-            scheduler.port
-            apiserver.securePort
+          scheduler.port
+          apiserver.securePort
         ]);
       in
       {
@@ -203,30 +203,32 @@ in
       in
       lib.mkMerge [
         (
-         let
-             peerUrls = lists.singleton "${mkScheme tls}://${address}:${toString peerPort}";
-         in {
-          enable = true;
-          inherit name;
-          listenClientUrls = [
-            url
-            "http://127.0.0.1:${toString port}"
-          ];
+          let
+            peerUrls = lists.singleton "${mkScheme tls}://${address}:${toString peerPort}";
+          in
+          {
+            enable = true;
+            inherit name;
+            listenClientUrls = [
+              url
+              "http://127.0.0.1:${toString port}"
+            ];
 
-          initialCluster = builtins.map
-          (peer:
-           let
-           inherit (peer.etcd) peerPort tls;
-           address = mkEtcdAddress peer;
-           in
-           "${peer.name}=${mkScheme tls}://${address}:${toString peerPort}")
-          peers;
+            initialCluster = builtins.map
+              (peer:
+                let
+                  inherit (peer.etcd) peerPort tls;
+                  address = mkEtcdAddress peer;
+                in
+                "${peer.name}=${mkScheme tls}://${address}:${toString peerPort}")
+              peers;
 
-          initialAdvertisePeerUrls = peerUrls;
-          listenPeerUrls = peerUrls;
+            initialAdvertisePeerUrls = peerUrls;
+            listenPeerUrls = peerUrls;
 
-          advertiseClientUrls = lists.singleton url;
-        })
+            advertiseClientUrls = lists.singleton url;
+          }
+        )
         (mkIf tls {
           peerClientCertAuth = true;
           clientCertAuth = true;

@@ -1,6 +1,7 @@
 let
-    enable = true;
-in {
+  enable = true;
+in
+{
   apiserver = {
     address = "192.168.1.145";
     port = 6443;
