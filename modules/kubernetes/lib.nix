@@ -11,6 +11,15 @@ let
 in
 {
   types = rec {
+    calicoInitServiceType = types.submodule ({
+        options = {
+            enable = mkEnableOption "the manifests for calico to work";
+            kubeconfig = mkOption {
+                type = types.path;
+                default = "/root/.kube/config";
+            };
+        };
+    });
     apiserverConfigType = types.submodule ({
       options = {
         address = mkOption {
@@ -27,6 +36,12 @@ in
           type = types.str;
           default = "10.32.0.0/24";
 
+        };
+
+        extraSANs = mkOption {
+            description = "A list of extra SANs for the api server";
+            default = [];
+            type = types.listOf types.str;
         };
       };
     });
@@ -47,6 +62,27 @@ in
           type = etcdHostType;
           description = "The config for the etcd cluster node";
           default = { };
+        };
+
+        initService = mkOption {
+            type = types.submodule({
+                options = {
+                    enable = mkOption {
+                        type = types.bool;
+                        default = true;
+                        description = "Whether to enable init service";
+                    };
+
+                    kubeconfig = mkOption {
+                        type = types.path;
+                        description = "The kubeconfig to use for the init service";
+                    };
+                };
+            });
+
+            default = {
+                kubeconfig = "/root/.kube/config";
+            };
         };
 
         master = mkEnableOption "use this node as control-plane";

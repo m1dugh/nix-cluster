@@ -2,15 +2,16 @@
 , lib
 , apiserver
 , masterHosts
-, extraSANs ? [ ]
 , workerHosts
 , cfssl
 , cfssljson
+, calicoUser ? "calico-cni"
 , ...
 }:
 with lib;
 let
   inherit (pkgs.callPackage ./lib.nix { }) mkCsr mkProfile applyNodeConfig;
+  inherit (apiserver) extraSANs;
   masterApiserverAddress = "https://${apiserver.address}:${toString apiserver.port}";
   caConf = mkCsr "k8s-cluster" {
     cn = "kubernetes";
@@ -89,8 +90,39 @@ let
   };
 
   calicoCsr = mkCsr "calico" {
-    cn = "calico-cni";
+    cn = calicoUser;
   };
+  k = "${pkgs.kubectl}/bin/kubectl";
+
+  mkKubeConfig = {
+    name,
+    user ? name,
+    ca ? "ca.pem",
+    cert ? "${name}.pem",
+    key ? "${name}-key.pem",
+    output ? "${name}.kubeconfig",
+    ...
+  }:
+  ''
+  ${k} config set-cluster kubernetes \
+      --certificate-authority=${ca} \
+      --embed-certs=true \
+      --server=${masterApiserverAddress} \
+      --kubeconfig=${output}
+
+  ${k} config set-credentials ${user} \
+      --client-certificate=${cert} \
+      --client-key=${key} \
+      --embed-certs=true \
+      --kubeconfig=${output}
+
+  ${k} config set-context default \
+      --cluster=kubernetes \
+      --user=${user} \
+      --kubeconfig=${output}
+
+  ${k} config use-context default --kubeconfig=${output}
+  '';
 
   profile = mkProfile "k8s-client-profile" {
     client = [
@@ -106,7 +138,6 @@ let
     ];
   };
   mkNodeConfig = node: "genCert server ${profile} ${node.name} ${mkNodeCsr node}";
-  k = "${pkgs.kubectl}/bin/kubectl";
 in
 ''
   mkdir -p kubernetes
@@ -124,25 +155,10 @@ in
   genCert client ${profile} service-accounts ${saCsr}
   genCert client ${profile} calico ${calicoCsr}
 
-  ${k} config set-cluster kubernetes \
-      --certificate-authority=ca.pem \
-      --embed-certs=true \
-      --server=${masterApiserverAddress} \
-      --kubeconfig=calico.kubeconfig
-
-  ${k} config set-credentials calico-cni \
-      --client-certificate=calico.pem \
-      --client-key=calico-key.pem \
-      --embed-certs=true \
-      --kubeconfig=calico.kubeconfig
-
-  ${k} config set-context default \
-      --cluster=kubernetes \
-      --user=calico-cni \
-      --kubeconfig=calico.kubeconfig
-
-  ${k} config use-context default \
-      --kubeconfig=calico.kubeconfig
+  ${mkKubeConfig {
+    name = "calico";
+    user = calicoUser;
+  }}
   )
 
   toJsonCerts kubernetes

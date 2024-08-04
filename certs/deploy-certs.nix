@@ -2,25 +2,43 @@
 , masterHosts
 , workerHosts
 , lib
+, deploymentConfig
 , pkgs
 , ...
 }:
 with lib;
 let
+    mkUrl = address:
+    if deploymentConfig == null || (! attrsets.hasAttrByPath [address] deploymentConfig) then
+        "root@${address}"
+    else
+    let
+        entry = deploymentConfig.${address};
+        destAddress = if attrsets.hasAttrByPath ["address"] entry then
+            entry.address
+        else
+            address
+        ;
+    in
+        "root@${destAddress}"
+    ;
   scp = "${pkgs.openssh}/bin/scp";
   ssh = "${pkgs.openssh}/bin/ssh";
   k8sDataPath = "/var/lib/kubernetes/";
   k8sCertPath = "${k8sDataPath}/ssl/";
   etcdDataPath = "/var/lib/etcd/";
   etcdCertPath = "${etcdDataPath}/ssl/";
+  cniConfigPath = "/var/lib/cni/net.d/";
   mkMasterNode =
     { address
+    , name
     , ...
     }:
     let
-      url = "root@${address}";
+      url = mkUrl address;
     in
     ''
+      echo Uploading master certs at ${url} for ${name} >&2
       uploadMasterCerts ${url}
     '';
   mkWorkerNode =
@@ -29,9 +47,10 @@ let
     , ...
     }:
     let
-      url = "root@${address}";
+      url = mkUrl address;
     in
     ''
+      echo Uploading worker certs at ${url} for ${name} >&2
       uploadWorkerCerts ${url} ${name}
     '';
   mkEtcdNode =
@@ -40,9 +59,10 @@ let
     , ...
     }:
     let
-      url = "root@${address}";
+      url = mkUrl address;
     in
     ''
+      echo Uploading etcd certs at ${url} for ${name} >&2
       uploadEtcdCerts ${url} ${name}
     '';
   etcdLines = builtins.map mkEtcdNode etcdHosts;
@@ -112,6 +132,11 @@ function uploadWorkerCerts () {
         $k8sDir/kube-controller-manager.pem $k8sDir/kube-controller-manager-key.pem \
         $k8sDir/kube-proxy.pem $k8sDir/kube-proxy-key.pem \
         $url:${k8sCertPath}/
+
+    remoteMkdir $url ${cniConfigPath}
+
+    ${scp} $k8sDir/calico.kubeconfig \
+        $url:${cniConfigPath}/calico-kubeconfig
 
     ${scp} $k8sDir/$node.pem $url:${k8sCertPath}/kubelet.pem
     ${scp} $k8sDir/$node-key.pem $url:${k8sCertPath}/kubelet-key.pem

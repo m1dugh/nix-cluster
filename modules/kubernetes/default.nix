@@ -5,10 +5,10 @@
 }:
 with lib;
 let
-  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress;
+  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress writeJSONText;
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
-  inherit (cfg.nodeConfig) master worker;
+  inherit (cfg.nodeConfig) master worker name;
   k8sNode = master || worker;
   inherit ((pkgs.callPackage ./lib.nix { }).types) nodeConfigType apiserverConfigType etcdConfigType;
   mkK8sCert = path: "/var/lib/kubernetes/ssl/${path}";
@@ -20,6 +20,13 @@ in
 {
   options.midugh.k8s-cluster = {
     enable = mkEnableOption "k8s cluster";
+
+    cni = mkOption {
+        type = types.enum ["calico" "flannel"];
+        default = "calico";
+        description = "The cni backend to use";
+    };
+
     etcd = mkOption {
       type = etcdConfigType;
       description = "The config of the etcd service";
@@ -55,6 +62,7 @@ in
 
   imports = [
     ./calico.nix
+    ./flannel.nix
   ];
 
   config = mkIf cfg.enable {
@@ -72,7 +80,6 @@ in
         kubectl
         kubernetes
         cri-tools
-        calico-cni-plugin
       ]);
 
     virtualisation.containerd = mkIf worker {
@@ -108,7 +115,7 @@ in
       };
 
     services.calico-felix = mkIf worker {
-        enable = true;
+        enable = (cfg.cni == "calico");
         etcd = {
             endpoints = etcdEndpoints;
             keyFile = mkK8sCert "etcd-client-key.pem";
@@ -116,6 +123,46 @@ in
             caFile = mkK8sCert "etcd-ca.pem";
         };
     };
+
+    services.flannel.etcd = mkIf worker {
+        endpoints = etcdEndpoints;
+        keyFile = mkK8sCert "etcd-client-key.pem";
+        certFile = mkK8sCert "etcd-client.pem";
+        caFile = mkK8sCert "etcd-ca.pem";
+    };
+
+    systemd.services.rbac-manifests-init-scripts =
+    let
+        k = "${pkgs.kubectl}/bin/kubectl";
+    in mkIf (worker && cfg.nodeConfig.initService.enable) {
+        path = with pkgs; [
+            kubectl
+        ];
+        script = ''
+        set -e
+        ${k} apply --validate=false -f ${./manifests/apiserver-to-kubelet.yaml}
+        '';
+
+        serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+        };
+
+        after = [
+            "kubelet.service"
+        ];
+
+        environment = with cfg.nodeConfig.initService; {
+            KUBECONFIG = kubeconfig;
+        };
+
+        unitConfig.Description = "a script applying basic rbac for kubernetes";
+
+        wantedBy = [
+            "multi-user.target"
+        ];
+    };
+
     services.kubernetes = mkIf k8sNode (
       let
         caFile = mkK8sCert "ca.pem";
@@ -145,6 +192,8 @@ in
               caFile = mkK8sCert "etcd-ca.pem";
             };
 
+            authorizationMode = ["RBAC" "Node"];
+
             kubeletClientKeyFile = mkK8sCert "kube-api-server-key.pem";
             kubeletClientCertFile = mkK8sCert "kube-api-server.pem";
             kubeletClientCaFile = mkK8sCert "ca.pem";
@@ -157,50 +206,32 @@ in
             tlsKeyFile = mkK8sCert "kube-api-server-key.pem";
           };
 
-        kubelet = mkIf worker {
+        kubelet = 
+        let
+            certFile = mkK8sCert "kubelet.pem";
+            keyFile = mkK8sCert "kubelet-key.pem";
+        in mkIf worker {
           enable = true;
 
-          taints = {};
-
-          kubeconfig = {
-            inherit server caFile;
-            certFile = mkDefault (mkK8sCert "kubelet.pem");
-            keyFile = mkDefault (mkK8sCert "kubelet-key.pem");
+          unschedulable = false;
+          taints = mkIf master {
+            "node.kubernetes.io/controlplane" = {
+                value = "true";
+                effect = "NoSchedule";
+            };
           };
+          kubeconfig = {
+            inherit server caFile certFile keyFile;
+          };
+
+          clientCaFile = mkK8sCert "ca.pem";
+          tlsCertFile = certFile;
+          tlsKeyFile = keyFile;
 
           containerRuntimeEndpoint = "unix:///run/containerd/containerd.sock";
           extraOpts = "--fail-swap-on=false";
-          cni = {
-            packages = with pkgs; [
-              calico-cni-plugin
-            ];
-            config = [
-              {
-                name = "k8s-pod-network";
-                cniVersion = "0.4.0";
-                type = "calico";
-                plugins = [
-                  {
-                    type = "calico";
-                    log_level = "info";
-                    datastore_type = "kubernetes";
-                    nodename = "127.0.0.1";
-                    ipam = {
-                      type = "host-local";
-                      subnet = "usePodCidr";
-                    };
-                    policy.type = "k8s";
-                    kubernetes.kubeconfig = "/var/lib/cni/net.d/calico-kubeconfig";
-                  }
-                  {
-                    type = "portmap";
-                    capabilities.portMappings = true;
-                    externalSetMarkChain = "KUBE-MARK-MASQ";
-                  }
-                ];
-              }
-            ];
-          };
+
+          cni.configDir = "/etc/cni/.net.d.wrapped/";
         };
       }
     );

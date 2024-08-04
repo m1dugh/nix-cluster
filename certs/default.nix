@@ -4,7 +4,7 @@
 }:
 with lib;
 let
-  inherit (import ../hosts.nix) nodes apiserver;
+  inherit (import ../hosts.nix) nodes apiserver deploymentConfig;
   etcdHosts = builtins.filter (n: n.etcd.enable && n.etcd.tls) nodes;
   workerHosts = builtins.filter (n: n.worker) nodes;
   masterHosts = builtins.filter (n: n.master) nodes;
@@ -24,6 +24,6 @@ in
   };
 
   deploy-certs = pkgs.callPackage ./deploy-certs.nix {
-    inherit etcdHosts workerHosts masterHosts;
+    inherit etcdHosts workerHosts masterHosts deploymentConfig;
   };
 }

@@ -52,6 +52,7 @@
 
   midugh.k8s-cluster = {
     enable = true;
+    cni = "flannel";
     inherit nodeConfig clusterNodes apiserver;
   };
 
