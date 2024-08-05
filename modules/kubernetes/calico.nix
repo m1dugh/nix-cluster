@@ -65,6 +65,18 @@ in {
       }
     ];
 
+    networking = {
+        dhcpcd.denyInterfaces = ["cali*" "tunl*" "vxlan.calico"];
+
+        firewall.allowedUDPPorts = [
+            4789
+        ];
+        firewall.allowedTCPPorts = [
+            179
+            5473
+        ];
+    };
+
     environment.etc."cni/.net.d.wrapped/10-calico.conflist" = mkIf (worker && cfg.enable) {
         text = builtins.toJSON {
             name = "k8s-pod-network";

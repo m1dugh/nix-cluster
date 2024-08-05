@@ -2,8 +2,10 @@
 , apiserver
 , pkgs
 , clusterNodes
+, lib
 , ...
 }:
+with lib;
 {
   imports = [
     ./secrets.nix
@@ -32,6 +34,11 @@
   };
 
   networking = {
+    extraHosts =
+    let
+        entries = map ({name, address, ...}: "${address}   ${name}") clusterNodes;
+    in strings.concatStringsSep "\n" entries;
+
     nftables.enable = true;
     hostName = nodeConfig.name;
     defaultGateway = {
@@ -52,7 +59,7 @@
 
   midugh.k8s-cluster = {
     enable = true;
-    cni = "flannel";
+    cni = "calico";
     inherit nodeConfig clusterNodes apiserver;
   };
 
