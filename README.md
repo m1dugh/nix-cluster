@@ -1,5 +1,11 @@
 # NixOS k8s cluster
 
+## Introduction
+
+This project has been described in a medium article that can be found
+[here](https://midugh.medium.com/build-your-kubernetes-cluster-with-raspberry-pis-using-nixos-745ed11e5b70).
+It gives more explanation about the whole construction of the project.
+
 ## Building the project
 
 ### Building the SD image
