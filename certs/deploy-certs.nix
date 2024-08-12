@@ -8,20 +8,21 @@
 }:
 with lib;
 let
-    mkUrl = address:
-    if deploymentConfig == null || (! attrsets.hasAttrByPath [address] deploymentConfig) then
-        "root@${address}"
+  mkUrl = address:
+    if deploymentConfig == null || (! attrsets.hasAttrByPath [ address ] deploymentConfig) then
+      "root@${address}"
     else
-    let
+      let
         entry = deploymentConfig.${address};
-        destAddress = if attrsets.hasAttrByPath ["address"] entry then
+        destAddress =
+          if attrsets.hasAttrByPath [ "address" ] entry then
             entry.address
-        else
+          else
             address
         ;
-    in
-        "root@${destAddress}"
-    ;
+      in
+      "root@${destAddress}"
+  ;
   scp = "${pkgs.openssh}/bin/scp";
   ssh = "${pkgs.openssh}/bin/ssh";
   k8sDataPath = "/var/lib/kubernetes/";

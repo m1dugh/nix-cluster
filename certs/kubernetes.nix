@@ -95,35 +95,35 @@ let
 
   k = "${pkgs.kubectl}/bin/kubectl";
 
-  mkKubeConfig = {
-    name,
-    user ? name,
-    ca ? "ca.pem",
-    cert ? "${name}.pem",
-    key ? "${name}-key.pem",
-    output ? "${name}.kubeconfig",
-    ...
-  }:
-  ''
-  ${k} config set-cluster kubernetes \
-      --certificate-authority=${ca} \
-      --embed-certs=true \
-      --server=${masterApiserverAddress} \
-      --kubeconfig=${output}
+  mkKubeConfig =
+    { name
+    , user ? name
+    , ca ? "ca.pem"
+    , cert ? "${name}.pem"
+    , key ? "${name}-key.pem"
+    , output ? "${name}.kubeconfig"
+    , ...
+    }:
+    ''
+      ${k} config set-cluster kubernetes \
+          --certificate-authority=${ca} \
+          --embed-certs=true \
+          --server=${masterApiserverAddress} \
+          --kubeconfig=${output}
 
-  ${k} config set-credentials ${user} \
-      --client-certificate=${cert} \
-      --client-key=${key} \
-      --embed-certs=true \
-      --kubeconfig=${output}
+      ${k} config set-credentials ${user} \
+          --client-certificate=${cert} \
+          --client-key=${key} \
+          --embed-certs=true \
+          --kubeconfig=${output}
 
-  ${k} config set-context default \
-      --cluster=kubernetes \
-      --user=${user} \
-      --kubeconfig=${output}
+      ${k} config set-context default \
+          --cluster=kubernetes \
+          --user=${user} \
+          --kubeconfig=${output}
 
-  ${k} config use-context default --kubeconfig=${output}
-  '';
+      ${k} config use-context default --kubeconfig=${output}
+    '';
 
   profile = mkProfile "k8s-client-profile" {
     client = [

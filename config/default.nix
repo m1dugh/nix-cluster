@@ -16,6 +16,9 @@ with lib;
     openssl
     htop
     nload
+
+    traceroute
+    tcpdump
   ];
 
   environment.sessionVariables = {
@@ -35,9 +38,10 @@ with lib;
 
   networking = {
     extraHosts =
-    let
-        entries = map ({name, address, ...}: "${address}   ${name}") clusterNodes;
-    in strings.concatStringsSep "\n" entries;
+      let
+        entries = map ({ name, address, ... }: "${address}   ${name}") clusterNodes;
+      in
+      strings.concatStringsSep "\n" entries;
 
     nftables.enable = true;
     hostName = nodeConfig.name;

@@ -39,15 +39,14 @@
           let
             pkgs = nixpkgs.legacyPackages.${system};
             certs = pkgs.callPackage ./certs { };
-            localPackages = pkgs.callPackage ./packages {};
+            localPackages = pkgs.callPackage ./packages { };
           in
           {
             inherit (certs) gen-certs build-config deploy-certs;
             inherit (localPackages)
-                calico-node
-                calico-ipam-cni-plugin
-                calico-manifests
-            ;
+              calico-node
+              calico-ipam-cni-plugin
+              ;
           });
       nixosModules = rec {
         kubernetes = {
@@ -84,10 +83,10 @@
               overlays = [
                 (final: prev: {
                   inherit (localPackages)
-                      calico-node
-                      calico-ipam-cni-plugin
-                      calico-manifests
-                  ;
+                    calico-node
+                    calico-ipam-cni-plugin
+                    calico-manifests
+                    ;
                   inherit (oldPackages) containerd;
                   # Required for building raspi kernel
                   makeModulesClosure = x: prev.makeModulesClosure (x // {
