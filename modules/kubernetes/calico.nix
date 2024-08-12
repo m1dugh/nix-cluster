@@ -112,7 +112,7 @@ in {
       calicoctl
     ];
 
-    services.calico-felix.initService.enable = mkDefault true;
+    services.calico-felix.initService.enable = mkDefault false;
 
     systemd.services.calico-manifests-init-script = 
     let
@@ -127,7 +127,8 @@ in {
         ${k} apply --validate=false -f ${pkgs.calico-manifests}
         '';
 
-    in mkIf cfg.initService.enable {
+    in {
+        enable = cfg.initService.enable;
         path = with pkgs; [
             kubectl
         ];
