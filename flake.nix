@@ -85,7 +85,6 @@
                   inherit (localPackages)
                     calico-node
                     calico-ipam-cni-plugin
-                    calico-manifests
                     ;
                   inherit (oldPackages) containerd;
                   # Required for building raspi kernel

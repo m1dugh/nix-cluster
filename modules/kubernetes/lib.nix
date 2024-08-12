@@ -11,15 +11,6 @@ let
 in
 {
   types = rec {
-    calicoInitServiceType = types.submodule ({
-      options = {
-        enable = mkEnableOption "the manifests for calico to work";
-        kubeconfig = mkOption {
-          type = types.path;
-          default = "/root/.kube/config";
-        };
-      };
-    });
     apiserverConfigType = types.submodule ({
       options = {
         address = mkOption {

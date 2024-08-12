@@ -7,7 +7,6 @@ with lib;
 let
   cfg = config.services.calico-felix;
   inherit (config.midugh.k8s-cluster.nodeConfig) name worker master;
-  inherit ((pkgs.callPackage ./lib.nix { }).types) calicoInitServiceType;
   calico-manifests = pkgs.fetchFromGitHub {
     owner = "projectcalico";
     repo = "calico";
@@ -21,10 +20,6 @@ in
 {
   options.services.calico-felix = {
     enable = mkEnableOption "calico-felix agent service";
-    initService = mkOption {
-      description = "The config for the init service";
-      type = calicoInitServiceType;
-    };
     etcd = mkOption {
       description = "The config for etcd";
       type = types.submodule ({ ... }: {
@@ -122,58 +117,6 @@ in
     environment.systemPackages = with pkgs; [
       calicoctl
     ];
-
-    services.calico-felix.initService.enable = mkDefault false;
-
-    systemd.services.calico-manifests-init-script =
-      let
-        script =
-          let
-            k = "${pkgs.kubectl}/bin/kubectl";
-          in
-          ''
-            set -e
-
-            mkdir -p /var/lib/calico/
-            echo ${name} > /var/lib/calico/nodename
-            ${k} apply --validate=false -f ${pkgs.calico-manifests}
-          '';
-
-      in
-      {
-        enable = cfg.initService.enable;
-        path = with pkgs; [
-          kubectl
-        ];
-
-        restartTriggers = [
-          pkgs.calico-manifests
-        ];
-
-        inherit script;
-
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-
-        after = [
-          "kubelet.service"
-          "containerd.service"
-        ];
-
-        environment = {
-          KUBECONFIG = cfg.initService.kubeconfig;
-        };
-
-        unitConfig = {
-          Description = "a script applying calico crds";
-        };
-
-        wantedBy = [
-          "multi-user.target"
-        ];
-      };
 
     services.kubernetes.kubelet.cni = {
       packages = with pkgs; [
