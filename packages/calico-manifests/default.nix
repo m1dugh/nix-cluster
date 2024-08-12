@@ -5,8 +5,7 @@
     ...
 }:
 let
-    inherit (pkgs.callPackage ../lib {}) writeJSONText;
-    calico-cluster-information = writeJSONText "calico-cluster-information.json" {
+    calico-cluster-information = builtins.toJSON {
         apiVersion = "crd.projectcalico.org/v1";
         kind = "ClusterInformation";
         metadata.name = "default";
@@ -16,7 +15,7 @@ let
             datastoreReady = true;
         };
     };
-    calico-cni-cluster-role-binding = writeJSONText "calico-cni-cluster-role-binding" {
+    calico-cni-cluster-role-binding = builtins.toJSON {
         apiVersion = "rbac.authorization.k8s.io/v1";
         kind = "ClusterRoleBinding";
         metadata.name = "calico-cni";
@@ -31,7 +30,7 @@ let
             name = calicoUser;
         }];
     };
-    calico-cni-cluster-role = writeJSONText "calico-cni-cluster-role" {
+    calico-cni-cluster-role = builtins.toJSON {
         apiVersion = "rbac.authorization.k8s.io/v1";
         kind = "ClusterRole";
         metadata.name = calicoUser;
@@ -101,10 +100,15 @@ in stdenv.mkDerivation {
     ];
 
     installPhase = ''
-        mkdir -p $out/manifests/
-        cp $src/manifests/crds.yaml $out/manifests/crds.yaml
-        cp ${calico-cni-cluster-role} $out/manifests/calico-cni-clusterrole.json
-        cp ${calico-cni-cluster-role-binding} $out/manifests/calico-cni-clusterrole-binding.json
-        cp ${calico-cluster-information} $out/manifests/calico-cni-cluster-information.json
+        addEntry() {
+            echo "---"   
+            cat /dev/stdin
+        } >> $out
+        cat $src/manifests/crds.yaml > $out
+        echo '${calico-cni-cluster-role}' | addEntry
+        echo '${calico-cni-cluster-role-binding}' | addEntry
+        echo '${calico-cluster-information}' | addEntry
+        cat ${./calico-node-cluster-role.yaml} | addEntry
+        cat ${./calico-node-daemon-set.yaml} | addEntry
         '';
 }

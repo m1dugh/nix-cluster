@@ -124,10 +124,9 @@ in {
 
         mkdir -p /var/lib/calico/
         echo ${name} > /var/lib/calico/nodename
-        for f in ${pkgs.calico-manifests}/manifests/*; do
-            ${k} apply --validate=false -f $f
-        done
+        ${k} apply --validate=false -f ${pkgs.calico-manifests}
         '';
+
     in mkIf cfg.initService.enable {
         path = with pkgs; [
             kubectl
@@ -146,7 +145,6 @@ in {
 
         after = [
             "kubelet.service"
-            "calico-felix.service"
             "containerd.service"
         ];
 
@@ -170,62 +168,5 @@ in {
         ];
     };
 
-    systemd.services.calico-felix =
-      let
-        content = with cfg.etcd; ''
-          FELIX_IPV6SUPPORT=false
-          FELIX_DATASTORETYPE=etcdv3
-          FELIX_ETCDENDPOINTS=${strings.concatStringsSep "," endpoints}
-        ''
-        + strings.optionalString (caFile != null) ''
-          FELIX_ETCDCAFILE=${caFile}
-        ''
-        + strings.optionalString (certFile != null) ''
-          FELIX_ETCDCERTFILE=${certFile}
-        ''
-        + strings.optionalString (keyFile != null) ''
-          FELIX_ETCDKEYFILE=${keyFile}
-        '';
-        envFile = pkgs.writeText "calico.env" content;
-      in
-      {
-        path = with pkgs; [
-            calico-node
-            iptables
-            ipset
-        ];
-        unitConfig = {
-          Description = "Calico Felix agent";
-          After = [
-            "syslog.target"
-            "network.target"
-          ];
-        };
-
-        environment = {
-            KUBERNETES_NODE_NAME = name;
-        };
-
-        serviceConfig = {
-          User = "root";
-          EnvironmentFile = envFile;
-          KillMode = "process";
-          Restart = "on-failure";
-          LimitNOFILE = 32000;
-        };
-
-        preStart = ''
-            mkdir -p /var/run/calico/ /var/lib/calico/
-            /opt/cni/bin/calico-ipam -upgrade
-        '';
-
-        script = ''
-            ${pkgs.calico-node}/bin/calico-node -felix
-        '';
-
-        wantedBy = [
-          "multi-user.target"
-        ];
-      };
   };
 }

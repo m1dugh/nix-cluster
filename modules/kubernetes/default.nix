@@ -176,6 +176,7 @@ in
         };
       in
       {
+        inherit caFile;
         clusterCidr = "10.96.0.0/16";
         proxy = mkConfig worker "kube-proxy";
         controllerManager = mkConfig worker "kube-controller-manager";
@@ -183,6 +184,7 @@ in
 
         apiserver = mkIf master
           {
+            allowPrivileged = true;
             enable = true;
             clientCaFile = caFile;
             etcd = {

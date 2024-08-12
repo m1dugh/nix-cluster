@@ -92,6 +92,7 @@ let
   calicoCsr = mkCsr "calico" {
     cn = calicoUser;
   };
+
   k = "${pkgs.kubectl}/bin/kubectl";
 
   mkKubeConfig = {
