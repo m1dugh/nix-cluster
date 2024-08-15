@@ -48,6 +48,10 @@ let
     cn = "service-accounts";
   };
 
+  coreDnsCsr = mkCsr "coredns" {
+    cn  = "system:coredns";
+  };
+
   mkNodeCsr =
     { name
     , address
@@ -155,6 +159,7 @@ in
   genCert server ${profile} kube-api-server ${apiServerCsr}
   genCert client ${profile} service-accounts ${saCsr}
   genCert client ${profile} calico ${calicoCsr}
+  genCert client ${profile} coredns ${coreDnsCsr}
 
   ${mkKubeConfig {
     name = "calico";

@@ -27,6 +27,7 @@ let
   ssh = "${pkgs.openssh}/bin/ssh";
   k8sDataPath = "/var/lib/kubernetes/";
   k8sCertPath = "${k8sDataPath}/ssl/";
+  corednsCertPath = "/var/lib/coredns/ssl/";
   etcdDataPath = "/var/lib/etcd/";
   etcdCertPath = "${etcdDataPath}/ssl/";
   cniConfigPath = "/var/lib/cni/net.d/";
@@ -141,6 +142,13 @@ function uploadWorkerCerts () {
 
     ${scp} $k8sDir/$node.pem $url:${k8sCertPath}/kubelet.pem
     ${scp} $k8sDir/$node-key.pem $url:${k8sCertPath}/kubelet-key.pem
+
+    remoteMkdir $url ${corednsCertPath}
+    ${scp} $k8sDir/ca.pem \
+        $k8sDir/coredns.pem $k8sDir/coredns-key.pem \
+        $url:${corednsCertPath}/
+
+    ${ssh} $url chown -R coredns:coredns ${corednsCertPath}
 
     ${ssh} $url chown -R kubernetes:kubernetes ${k8sCertPath}
     ${ssh} $url chmod 400 ${k8sCertPath}/*.pem

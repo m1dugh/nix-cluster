@@ -11,8 +11,7 @@ let
   inherit (cfg.nodeConfig) master worker name;
   k8sNode = master || worker;
   inherit ((pkgs.callPackage ./lib.nix { }).types) nodeConfigType apiserverConfigType etcdConfigType;
-  mkK8sCert = path: "/var/lib/kubernetes/ssl/${path}";
-  mkEtcdCert = path: "/var/lib/etcd/ssl/${path}";
+  inherit ((pkgs.callPackage ./lib.nix { }).lib) mkK8sCert mkEtcdCert;
   server = mkApiserverAddress cfg.apiserver;
   etcdNodes = getEtcdNodes cfg.clusterNodes;
   etcdEndpoints = builtins.map mkEtcdEndpoint etcdNodes;
@@ -63,6 +62,7 @@ in
   imports = [
     ./calico.nix
     ./flannel.nix
+    ./coredns.nix
   ];
 
   config = mkIf cfg.enable {
@@ -142,6 +142,7 @@ in
         script = ''
           set -e
           ${k} apply --validate=false -f ${./manifests/apiserver-to-kubelet.yaml}
+          ${k} apply --validate=false -f ${./manifests/coredns-rbac.yaml}
         '';
 
         serviceConfig = {
@@ -177,16 +178,6 @@ in
         };
       in
       {
-
-        addons.dns = {
-          enable = true;
-          coredns = {
-            finalImageTag = "1.10.1";
-            imageDigest = "sha256:a0ead06651cf580044aeb0a0feba63591858fb2e43ade8c9dea45a6a89ae7e5e";
-            imageName = "coredns/coredns";
-            sha256 = "0c4vdbklgjrzi6qc5020dvi8x3mayq4li09rrq2w0hcjdljj0yf9";
-          };
-        };
 
         inherit caFile;
         clusterCidr = "10.96.0.0/16";
