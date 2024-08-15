@@ -49,7 +49,7 @@ let
   };
 
   coreDnsCsr = mkCsr "coredns" {
-    cn  = "system:coredns";
+    cn = "system:coredns";
   };
 
   mkNodeCsr =

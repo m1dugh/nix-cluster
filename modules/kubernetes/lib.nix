@@ -11,9 +11,9 @@ let
 in
 {
   lib = {
-      mkK8sCert = path: "/var/lib/kubernetes/ssl/${path}";
-      mkEtcdCert = path: "/var/lib/etcd/ssl/${path}";
-      mkCoreDnsCert = path: "/var/lib/coredns/ssl/${path}";
+    mkK8sCert = path: "/var/lib/kubernetes/ssl/${path}";
+    mkEtcdCert = path: "/var/lib/etcd/ssl/${path}";
+    mkCoreDnsCert = path: "/var/lib/coredns/ssl/${path}";
   };
   types = rec {
     apiserverConfigType = types.submodule ({
