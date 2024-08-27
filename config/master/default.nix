@@ -27,7 +27,7 @@ in {
     peers = [
       {
         # Midugh pc
-        publicKey = "5YtnXbwCv8i0Vy2WPo1DgM4fYgXib25tnRKVHPRz7m0=";
+        publicKey = "jVWVndscDaTe2YtVKGxOozWx+O2fd9rxWYVr9+wCEiQ=";
         allowedIPs = [
           "10.200.0.100/32"
         ];
