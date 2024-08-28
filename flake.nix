@@ -61,9 +61,9 @@
         };
 
         colmena = {
-            imports = [
-                ./modules/colmena
-            ];
+          imports = [
+            ./modules/colmena
+          ];
         };
 
         basic = {
@@ -151,60 +151,65 @@
             })
             basicNodes));
 
-      devShells = flake-utils.lib.eachDefaultSystemMap (system: 
-      let
-        pkgs = import nixpkgs {
+      devShells = flake-utils.lib.eachDefaultSystemMap (system:
+        let
+          pkgs = import nixpkgs {
             inherit system;
-        };
-      in {
-        default = pkgs.mkShell {
+          };
+        in
+        {
+          default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
-                colmena
+              colmena
             ];
-        };
-      });
+          };
+        });
 
-      colmena = 
-      let
-        configs = self.nixosConfigurations;
-      in {
-        meta = {
+      colmena =
+        let
+          configs = self.nixosConfigurations;
+        in
+        {
+          meta = {
             description = "Raspberry pi k8s cluster";
             nixpkgs = import nixpkgs {
-                system = "aarch64-linux";
+              system = "aarch64-linux";
             };
-            nodeNixpkgs = builtins.mapAttrs(_: node: node.pkgs) configs;
-            nodeSpecialArgs = builtins.mapAttrs(_: node: node._module.specialArgs) configs;
-        };
-      }
-      // (builtins.mapAttrs(_: conf: 
-      let
-        inherit (conf._module.specialArgs) nodeConfig;
-        inherit (import ./hosts.nix) deploymentConfig;
-        targetHost = 
-        if
-            builtins.hasAttr "${nodeConfig.name}.address" deploymentConfig
-        then
-            deploymentConfig.${nodeConfig.name}.address
-        else
-            nodeConfig.address;
-      in ({
-        deployment = {
-            buildOnTarget = true;
-            inherit targetHost;
+            nodeNixpkgs = builtins.mapAttrs (_: node: node.pkgs) configs;
+            nodeSpecialArgs = builtins.mapAttrs (_: node: node._module.specialArgs) configs;
+          };
+        }
+        // (builtins.mapAttrs
+          (_: conf:
+            let
+              inherit (conf._module.specialArgs) nodeConfig;
+              inherit (import ./hosts.nix) deploymentConfig;
+              targetHost =
+                if
+                  builtins.hasAttr "${nodeConfig.name}.address" deploymentConfig
+                then
+                  deploymentConfig.${nodeConfig.name}.address
+                else
+                  nodeConfig.address;
+            in
+            ({
+              deployment = {
+                buildOnTarget = true;
+                inherit targetHost;
 
-            tags = builtins.filter (v: v != null) [
-                (lib.strings.optionalString (nodeConfig.etcd.enable) "etcd")
-                (lib.strings.optionalString (nodeConfig.master) "master")
-                (lib.strings.optionalString (nodeConfig.worker) "worker")
-            ];
-        };
+                tags = builtins.filter (v: v != null) [
+                  (lib.strings.optionalString (nodeConfig.etcd.enable) "etcd")
+                  (lib.strings.optionalString (nodeConfig.master) "master")
+                  (lib.strings.optionalString (nodeConfig.worker) "worker")
+                ];
+              };
 
-        imports = conf._module.args.modules ++ [
-            self.nixosModules.colmena
-        ];
-        
-      })) self.nixosConfigurations);
+              imports = conf._module.args.modules ++ [
+                self.nixosModules.colmena
+              ];
+
+            }))
+          self.nixosConfigurations);
 
 
       formatter = flake-utils.lib.eachDefaultSystemMap
