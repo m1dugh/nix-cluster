@@ -35,5 +35,11 @@ in {
         };
         "etcd-client.pem" = mkEtcdSecret "client.pem";
         "etcd-client-key.pem" = mkEtcdSecret "client-key.pem";
+        "config" = {
+            destDir = "/root/.kube";
+            user = "root";
+            group = "root";
+            keyFile = ../../generated-certs/kubernetes/admin.kubeconfig;
+        };
     });
 }

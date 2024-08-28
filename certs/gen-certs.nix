@@ -4,6 +4,7 @@
 }@inputs:
 with lib;
 let
+  buildConfig = pkgs.callPackage ./build-config.nix inputs;
   cfssl = "${pkgs.cfssl}/bin/cfssl";
   cfssljson = "${pkgs.cfssl}/bin/cfssljson";
   jq = "${pkgs.jq}/bin/jq";
@@ -72,5 +73,11 @@ pkgs.writeShellScriptBin "gen-certs" ''
   # generates ca.csr, ca-key.pem and ca.pem
   ${pkgs.callPackage ./etcd.nix defaultArgs}
   ${pkgs.callPackage ./kubernetes.nix defaultArgs}
+
+
+  )
+  (
+   cd $out/kubernetes
+   ${getExe buildConfig} .
   )
 ''

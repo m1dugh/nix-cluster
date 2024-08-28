@@ -7,9 +7,9 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-file="./secrets/servers.key"
+file="./generated-certs"
 
-if ! [ -f "$file" ]; then
+if ! [ -e "$file" ]; then
     echo "could not find file $file" >&2
     exit 1
 fi
