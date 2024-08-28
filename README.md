@@ -20,16 +20,28 @@ Where `<host>` is the name of the nixosConfiguration.
 
 ### Deploying to target
 
-To deploy to an existing nixos host, run the following command
+This project uses [colmena](https://github.com/zhaofengli/colmena) for deployment.
+In order for all the certificates to be pushed to the remote hosts, one needs
+to use colmena to deploy the keys.
 
+1. Generate the keys
 ```shell
-$ ./runner-wrapper.sh nixos-rebuild switch --fast \
-    --flake .#<host> \
-    --target-host root@<address> \
-    --build-host root@<address>
+$ nix run .\#gen-certs
 ```
 
-Where `<host>` is the name of the nixos config, and `<address>`, is the network address of the target host.
+2. Upload the keys
+```shell
+$ ./runner-wrapper.sh colmena upload-keys
+```
+
+Once the keys has been deployed, the proper deployment can begin.
+
+```shell
+$ colmena apply --no-keys
+```
+
+*Note: when applying, we are not deploying the keys once again are they
+are meant to be kept the same amongst multiple deployments.*
 
 ## Components
 
