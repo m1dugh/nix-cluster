@@ -60,6 +60,12 @@
           ];
         };
 
+        colmena = {
+            imports = [
+                ./modules/colmena
+            ];
+        };
+
         basic = {
           imports = [
             kubernetes
@@ -194,7 +200,9 @@
             ];
         };
 
-        imports = conf._module.args.modules;
+        imports = conf._module.args.modules ++ [
+            self.nixosModules.colmena
+        ];
         
       })) self.nixosConfigurations);
 
