@@ -3,16 +3,16 @@ let
 in
 {
   deploymentConfig = {
-    "192.168.1.145" = {
+    "cluster-master-1" = {
       address = "10.200.0.1";
     };
-    "192.168.1.146" = {
+    "cluster-master-2" = {
       address = "10.200.0.2";
     };
-    "192.168.1.147" = {
+    "cluster-master-3" = {
       address = "10.200.0.3";
     };
-    "192.168.1.148" = {
+    "cluster-master-4" = {
       address = "10.200.0.4";
     };
   };
