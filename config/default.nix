@@ -19,6 +19,9 @@ with lib;
 
     traceroute
     tcpdump
+
+
+    nfs-utils
   ];
 
   environment.sessionVariables = {

@@ -138,6 +138,7 @@
               {
                 extraModules = [
                   ./config/master
+                  ./config/nfs.nix
                 ];
               };
           }
@@ -186,7 +187,7 @@
               inherit (import ./hosts.nix) deploymentConfig;
               targetHost =
                 if
-                  builtins.hasAttr "${nodeConfig.name}.address" deploymentConfig
+                  (builtins.hasAttr "${nodeConfig.name}" deploymentConfig) && (builtins.hasAttr "address" deploymentConfig.${nodeConfig.name})
                 then
                   deploymentConfig.${nodeConfig.name}.address
                 else
