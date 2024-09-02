@@ -4,18 +4,18 @@ let
 in
 {
   deploymentConfig = {
-    #   "cluster-master-1" = {
-    #     address = "10.200.0.1";
-    #   };
-    #   "cluster-master-2" = {
-    #     address = "10.200.0.2";
-    #   };
-    #   "cluster-master-3" = {
-    #     address = "10.200.0.3";
-    #   };
-    #   "cluster-master-4" = {
-    #     address = "10.200.0.4";
-    #   };
+    "cluster-master-1" = {
+      address = "10.200.0.1";
+    };
+    "cluster-master-2" = {
+      address = "10.200.0.2";
+    };
+    "cluster-master-3" = {
+      address = "10.200.0.3";
+    };
+    "cluster-master-4" = {
+      address = "10.200.0.4";
+    };
   };
   apiserver = {
     address = "192.168.1.145";

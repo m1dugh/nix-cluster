@@ -177,7 +177,11 @@
               system = "aarch64-linux";
             };
             nodeNixpkgs = builtins.mapAttrs (_: node: node.pkgs) configs;
-            nodeSpecialArgs = builtins.mapAttrs (_: node: node._module.specialArgs) configs;
+            nodeSpecialArgs = builtins.mapAttrs
+              (_: node: node._module.specialArgs // {
+                colmena = true;
+              })
+              configs;
           };
         }
         // (builtins.mapAttrs

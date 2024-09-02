@@ -49,9 +49,6 @@ are meant to be kept the same amongst multiple deployments.*
 
 Calico is the cni used on each machine.
 
-To install calico, the following [guide](https://docs.tigera.io/calico/latest/getting-started/bare-metal/installation/binary)
-was used.
-
 ## Modules
 
 ### Gateway
@@ -72,10 +69,12 @@ the secrets onto the node.
 Push key `secrets/servers.key` to `/var/lib/nixos/servers.key` on the remote
 node to allow it.
 
+## Post-Install
+
 ### Configuring calico
 
 To install calico, follow [this guide](https://docs.tigera.io/calico/latest/getting-started/kubernetes/self-managed-onprem/onpremises#install-calico-with-etcd-datastore).
 
 There are a few steps to configure calico.
 1. Configure the ipv4 pool (follow guide)
-2. Remove the initContainer called `install-cni`.
+2. Remove the initContainer called `install-cni` in the `calico-node` daemonset.
