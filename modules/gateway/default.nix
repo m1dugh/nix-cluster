@@ -3,7 +3,23 @@
 , ...
 }:
 with lib;
-let cfg = config.midugh.gateway;
+let
+    extraNatConfigType = {
+        options = {
+            prerouting = mkOption {
+                type = types.lines;
+                description = "A list of prerouting rules to add to the gateway nat";
+                default = "";
+            };
+
+            postrouting = mkOption {
+                type = types.lines;
+                description = "A list of postrouting rules to add to the gateway nat";
+                default = "";
+            };
+        };
+    };
+    cfg = config.midugh.gateway;
 in {
   options.midugh.gateway = {
     enable = mkEnableOption "Gateway module";
@@ -28,6 +44,11 @@ in {
       type = types.listOf types.str;
       description = "The internal ips for the server";
       default = [ ];
+    };
+
+    extraNatConfig = mkOption {
+        type = types.submodule extraNatConfigType;
+        default = {};
     };
 
     clients = mkOption {
@@ -69,11 +90,13 @@ in {
           content = ''
             chain postrouting {
                 type nat hook postrouting priority 100;
+                ${cfg.extraNatConfig.postrouting}
             }
 
             chain prerouting {
                 type nat hook prerouting priority -100;
                 ${strings.concatStringsSep "\n" clients}
+                ${cfg.extraNatConfig.prerouting}
             }
           '';
 
