@@ -3,6 +3,11 @@ let
   remote = false;
 in
 {
+  extraConfigs = {
+    "cluster-master-3" = {
+        networking.firewall.allowedTCPPorts = [ 80 443 ];
+    };
+  };
   deploymentConfig = {
     "cluster-master-1" = {
       address = "10.200.0.1";

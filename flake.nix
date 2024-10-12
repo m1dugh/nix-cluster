@@ -122,8 +122,8 @@
                 self.nixosModules.raspi
               ] ++ extraModules;
             };
-          makeRpiConfig = args: makeRpiConfigCustom args { };
-          inherit (import ./hosts.nix) nodes apiserver;
+          inherit (import ./hosts.nix) nodes apiserver extraConfigs;
+          getExtraConfig = node: if builtins.hasAttr node extraConfigs then extraConfigs."${node}" else {};
           masterNode = builtins.head nodes;
           basicNodes = builtins.tail nodes;
         in
@@ -139,15 +139,20 @@
                 extraModules = [
                   ./config/master
                   ./config/nfs.nix
+                  (getExtraConfig masterNode.name)
                 ];
               };
           }
           (builtins.listToAttrs (builtins.map
             (nodeConfig: {
               inherit (nodeConfig) name;
-              value = makeRpiConfig {
+              value = makeRpiConfigCustom {
                 inherit apiserver nodeConfig;
                 clusterNodes = nodes;
+              } {
+                extraModules = [
+                    (getExtraConfig nodeConfig.name)
+                ];
               };
             })
             basicNodes));
