@@ -5,7 +5,7 @@
 }:
 with lib;
 let
-  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress writeJSONText;
+  inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress mkExtraOpts;
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
   inherit (cfg.nodeConfig) master worker name;
@@ -182,7 +182,22 @@ in
         inherit caFile;
         clusterCidr = "10.96.0.0/16";
         proxy = mkConfig worker "kube-proxy";
-        controllerManager = mkConfig worker "kube-controller-manager";
+
+        controllerManager = {
+          enable = master;
+          kubeconfig = {
+            inherit server caFile;
+            certFile = mkDefault (mkK8sCert "kube-controller-manager.pem");
+            keyFile = mkDefault (mkK8sCert "kube-controller-manager-key.pem");
+          };
+          extraOpts = mkExtraOpts {
+            "--requestheader-client-ca-file" = mkK8sCert "front-proxy-ca.pem";
+            "--authorization-kubeconfig" = mkK8sCert "kube-controller-manager-authorization.kubeconfig";
+            "--authentication-kubeconfig" = mkK8sCert "kube-controller-manager-authentication.kubeconfig";
+          };
+          serviceAccountKeyFile = mkK8sCert "service-accounts-key.pem";
+        };
+
         scheduler = mkConfig master "kube-scheduler";
 
         apiserver = mkIf master
@@ -195,6 +210,16 @@ in
               keyFile = mkK8sCert "etcd-client-key.pem";
               certFile = mkK8sCert "etcd-client.pem";
               caFile = mkK8sCert "etcd-ca.pem";
+            };
+            extraOpts = mkExtraOpts {
+              "--requestheader-client-ca-file" = mkK8sCert "front-proxy-ca.pem";
+              "--proxy-client-cert-file" = mkK8sCert "front-proxy-client.pem";
+              "--proxy-client-key-file" = mkK8sCert "front-proxy-client-key.pem";
+              "--requestheader-allowed-names" = "front-proxy-ca";
+              "--requestheader-extra-headers-prefix" = "X-Remote-Extra-";
+              "--requestheader-group-headers" = "X-Remote-Group";
+              "--requestheader-username-headers" = "X-Remote-User";
+              "--enable-aggregator-routing" = "true";
             };
 
             authorizationMode = [ "RBAC" "Node" ];

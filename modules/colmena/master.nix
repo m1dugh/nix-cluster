@@ -12,6 +12,10 @@ let
     permissions = "0400";
   };
 
+  mkFrontProxySecret = f: (mkSecret f) // {
+    keyFile = ../../generated-certs/kubernetes/front-proxy/${f};
+  };
+
   mkEtcdSecret = filename: rec {
     keyFile = ../../generated-certs/etcd/${filename};
     destDir = "/var/lib/kubernetes/ssl/";
@@ -30,6 +34,8 @@ in
     "kube-scheduler-key.pem"
     "service-accounts.pem"
     "service-accounts-key.pem"
+    "kube-controller-manager.pem"
+    "kube-controller-manager-key.pem"
   ]
     mkSecret) // {
     "etcd-k8s-ca.pem" = mkEtcdSecret "ca.pem" // {
@@ -43,5 +49,14 @@ in
       group = "root";
       keyFile = ../../generated-certs/kubernetes/admin.kubeconfig;
     };
+
+    # TODO: generate proper kubeconfigs for controller manager
+    "kube-controller-manager-authorization.kubeconfig" = mkSecret "admin.kubeconfig";
+    "kube-controller-manager-authentication.kubeconfig" = mkSecret "admin.kubeconfig";
+
+    "front-proxy-ca-key.pem" = mkFrontProxySecret "ca-key.pem";
+    "front-proxy-ca.pem" = mkFrontProxySecret "ca.pem";
+    "front-proxy-client.pem" = mkFrontProxySecret "front-proxy-client.pem";
+    "front-proxy-client-key.pem" = mkFrontProxySecret "front-proxy-client-key.pem";
   });
 }

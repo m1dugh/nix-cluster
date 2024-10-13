@@ -73,6 +73,7 @@ pkgs.writeShellScriptBin "gen-certs" ''
   # generates ca.csr, ca-key.pem and ca.pem
   ${pkgs.callPackage ./etcd.nix defaultArgs}
   ${pkgs.callPackage ./kubernetes.nix defaultArgs}
+  ${pkgs.callPackage ./kube-front-proxy.nix defaultArgs}
 
 
   )

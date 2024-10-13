@@ -1,8 +1,11 @@
 { pkgs
+, lib
 , ...
 }:
 rec {
   writeJSONText = name: obj: pkgs.writeText "${name}.json" (builtins.toJSON obj);
+
+  mkExtraOpts = elems: lib.strings.concatStringsSep " " (lib.attrsets.mapAttrsToList (key: value: "${key}=${value}") elems);
 
   mkScheme = tls: if tls then "https" else "http";
 

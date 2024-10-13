@@ -16,8 +16,6 @@ in
 {
   deployment.keys = mkIf nodeConfig.worker ((attrsets.genAttrs [
     "ca.pem"
-    "kube-controller-manager.pem"
-    "kube-controller-manager-key.pem"
     "kube-proxy.pem"
     "kube-proxy-key.pem"
   ]
