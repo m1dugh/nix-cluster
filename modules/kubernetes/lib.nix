@@ -14,6 +14,7 @@ in
     mkK8sCert = path: "/var/lib/kubernetes/ssl/${path}";
     mkEtcdCert = path: "/var/lib/etcd/ssl/${path}";
     mkCoreDnsCert = path: "/var/lib/coredns/ssl/${path}";
+    mkFlannelCert = path: "/var/lib/flannel/ssl/${path}";
   };
   types = rec {
     apiserverConfigType = types.submodule ({

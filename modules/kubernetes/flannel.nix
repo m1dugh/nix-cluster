@@ -1,15 +1,21 @@
 { config
 , lib
+, pkgs
 , ...
 }:
 with lib;
 let
+  inherit (pkgs.callPackage ../../lib { }) getEtcdNodes mkEtcdEndpoint;
   cfg = config.midugh.k8s-cluster;
-  inherit (cfg.nodeConfig) worker;
+  inherit (cfg.nodeConfig) worker master;
+  inherit ((pkgs.callPackage ./lib.nix { }).lib) mkFlannelCert;
+  k8sNode = worker || master;
+  etcdNodes = getEtcdNodes cfg.clusterNodes;
+  etcdEndpoints = builtins.map mkEtcdEndpoint etcdNodes;
 in
 {
 
-  config = mkIf (worker && (cfg.cni == "flannel")) {
+  config = mkIf k8sNode {
     networking = {
       dhcpcd.denyInterfaces = [ "mynet*" "flannel*" ];
 
@@ -19,31 +25,17 @@ in
       ];
     };
 
-    environment.etc."cni/.net.d.wrapped/11-flannel.conflist" = mkIf worker {
-      text = builtins.toJSON {
-        name = "mynet0";
-        cniVersion = "0.3.1";
-        plugins = [
-          {
-            type = "flannel";
-            delegate = {
-              hairpinMode = true;
-              isDefaultGateway = true;
-            };
-          }
-          {
-            type = "portmap";
-            capabilities.portMappings = true;
-          }
-        ];
-      };
-    };
-
     services.flannel = {
       enable = true;
       network = config.services.kubernetes.clusterCidr;
 
       storageBackend = "etcd";
+      etcd = {
+          endpoints = etcdEndpoints;
+          keyFile = mkFlannelCert "etcd-client-key.pem";
+          certFile = mkFlannelCert "etcd-client.pem";
+          caFile = mkFlannelCert "etcd-ca.pem";
+      };
     };
   };
 }

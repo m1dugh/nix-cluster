@@ -5,11 +5,11 @@
 with lib;
 let
   inherit (nodeConfig) name;
-  mkSecret = filename: {
+  mkSecret = filename: rec {
     keyFile = ../../generated-certs/kubernetes/${filename};
     destDir = "/var/lib/kubernetes/ssl/";
     user = "kubernetes";
-    group = "kubernetes";
+    group = user;
     permissions = "0400";
   };
 in
@@ -22,9 +22,5 @@ in
     mkSecret) // {
     "kubelet.pem" = mkSecret "${name}.pem";
     "kubelet-key.pem" = mkSecret "${name}-key.pem";
-    "calico-kubeconfig" = {
-      keyFile = ../../generated-certs/kubernetes/calico.kubeconfig;
-      destDir = "/var/lib/cni/net.d/";
-    };
   });
 }

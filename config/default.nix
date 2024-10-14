@@ -66,7 +66,6 @@ with lib;
 
   midugh.k8s-cluster = {
     enable = true;
-    cni = "calico";
     inherit nodeConfig clusterNodes apiserver;
   };
 

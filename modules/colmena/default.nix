@@ -9,6 +9,7 @@ with lib;
     ./master.nix
     ./etcd.nix
     ./worker.nix
+    ./flannel.nix
   ];
 
   deployment.keys."servers.key" = mkIf colmena {

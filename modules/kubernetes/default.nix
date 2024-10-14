@@ -8,7 +8,7 @@ let
   inherit (pkgs.callPackage ../../lib { }) mkApiserverAddress getEtcdNodes mkScheme mkEtcdEndpoint mkEtcdAddress mkExtraOpts;
   cfg = config.midugh.k8s-cluster;
   etcdConfig = cfg.nodeConfig.etcd;
-  inherit (cfg.nodeConfig) master worker name;
+  inherit (cfg.nodeConfig) master worker;
   k8sNode = master || worker;
   inherit ((pkgs.callPackage ./lib.nix { }).types) nodeConfigType apiserverConfigType etcdConfigType;
   inherit ((pkgs.callPackage ./lib.nix { }).lib) mkK8sCert mkEtcdCert;
@@ -19,12 +19,6 @@ in
 {
   options.midugh.k8s-cluster = {
     enable = mkEnableOption "k8s cluster";
-
-    cni = mkOption {
-      type = types.enum [ "calico" "flannel" ];
-      default = "calico";
-      description = "The cni backend to use";
-    };
 
     etcd = mkOption {
       type = etcdConfigType;
@@ -60,7 +54,6 @@ in
   };
 
   imports = [
-    ./calico.nix
     ./flannel.nix
     ./coredns.nix
   ];
@@ -114,28 +107,11 @@ in
         allowedTCPPorts = etcdPorts ++ k8sWorkerPorts ++ k8sMasterPorts;
       };
 
-    services.calico-felix = mkIf worker {
-      enable = (cfg.cni == "calico");
-      etcd = {
-        endpoints = etcdEndpoints;
-        keyFile = mkK8sCert "etcd-client-key.pem";
-        certFile = mkK8sCert "etcd-client.pem";
-        caFile = mkK8sCert "etcd-ca.pem";
-      };
-    };
-
-    services.flannel.etcd = mkIf worker {
-      endpoints = etcdEndpoints;
-      keyFile = mkK8sCert "etcd-client-key.pem";
-      certFile = mkK8sCert "etcd-client.pem";
-      caFile = mkK8sCert "etcd-ca.pem";
-    };
-
     systemd.services.rbac-manifests-init-scripts =
       let
         k = "${pkgs.kubectl}/bin/kubectl";
       in
-      mkIf (worker && cfg.nodeConfig.initService.enable) {
+      mkIf (master && cfg.nodeConfig.initService.enable) {
         path = with pkgs; [
           kubectl
         ];
@@ -265,7 +241,15 @@ in
             containerRuntimeEndpoint = "unix:///run/containerd/containerd.sock";
             extraOpts = "--fail-swap-on=false";
 
-            cni.configDir = "/etc/cni/.net.d.wrapped/";
+            cni.config = [{
+                name = "mynet";
+                type = "flannel";
+                cniVersion = "0.3.1";
+                delegate = {
+                    isDefaultGateway = true;
+                    bridge = "mynet";
+                };
+            }];
           };
       }
     );
