@@ -6,7 +6,7 @@
 let
     inherit (pkgs.callPackage ./lib.nix { }) mkCsr mkProfile;
     caConf = mkCsr "k8s-front-proxy" {
-        cn = "front-proxy-ca";
+        cn = "kubernetes";
         organization = "k8s-cluster";
     };
     frontProxyCsr = mkCsr "front-proxy" {
@@ -25,6 +25,6 @@ mkdir -p kubernetes/front-proxy
 (
     cd kubernetes/front-proxy
     genCa ${caConf}
-    genCert kubernetes ${profile} front-proxy-client ${frontProxyCsr}
+    genCert kubernetes ${profile} front-proxy ${frontProxyCsr}
 )
 ''

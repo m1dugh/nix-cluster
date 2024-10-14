@@ -54,9 +54,8 @@ in
     "kube-controller-manager-authorization.kubeconfig" = mkSecret "admin.kubeconfig";
     "kube-controller-manager-authentication.kubeconfig" = mkSecret "admin.kubeconfig";
 
-    "front-proxy-ca-key.pem" = mkFrontProxySecret "ca-key.pem";
     "front-proxy-ca.pem" = mkFrontProxySecret "ca.pem";
-    "front-proxy-client.pem" = mkFrontProxySecret "front-proxy-client.pem";
-    "front-proxy-client-key.pem" = mkFrontProxySecret "front-proxy-client-key.pem";
+    "front-proxy.pem" = mkFrontProxySecret "front-proxy.pem";
+    "front-proxy-key.pem" = mkFrontProxySecret "front-proxy-key.pem";
   });
 }
