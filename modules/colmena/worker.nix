@@ -22,5 +22,8 @@ in
     mkSecret) // {
     "kubelet.pem" = mkSecret "${name}.pem";
     "kubelet-key.pem" = mkSecret "${name}-key.pem";
+    "front-proxy-ca.pem" = (mkSecret "front-proxy-ca.pem") // {
+        keyFile = ../../generated-certs/kubernetes/front-proxy/ca.pem;
+    };
   });
 }

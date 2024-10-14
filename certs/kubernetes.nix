@@ -166,6 +166,4 @@ in
     user = calicoUser;
   }}
   )
-
-  toJsonCerts kubernetes
 ''

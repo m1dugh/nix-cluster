@@ -67,6 +67,11 @@ in
       }
     ];
 
+    security.pki.certificateFiles = lists.optionals k8sNode [
+        ../../generated-certs/kubernetes/front-proxy/ca.pem
+        ../../generated-certs/kubernetes/ca.pem
+    ];
+
 
     environment.systemPackages = with pkgs;
       (lists.optionals k8sNode [

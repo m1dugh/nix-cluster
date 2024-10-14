@@ -1,21 +1,5 @@
 #!/bin/sh
 
-add_files() {
-    for file in "$@"; do
-        if ! [ -e "$file" ]; then
-            echo "could not find file $file" >&2
-            exit 1
-        fi
-        git add -f "$file"
-    done
-}
-
-remove_files() {
-    for file in "$@"; do
-        git restore --staged "$file"
-    done
-}
-
 set -e
 
 if [ $# -eq 0 ]; then
@@ -23,12 +7,12 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-files="./generated-certs ./secrets/servers.key"
-
-add_files $files
+find ./generated-certs -type f -name "*-key.pem" -exec git add -f '{}' \;
+git add -f "./secrets/servers.key"
 
 set +e
 "$@"
 set -e
 
-remove_files $files
+find ./generated-certs -type f -name "*-key.pem" -exec git restore --staged '{}' \;
+git restore --staged "./secrets/servers.key"

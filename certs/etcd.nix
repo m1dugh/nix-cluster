@@ -58,5 +58,4 @@ in
   genCert client ${profile} client ${clientCsr}
 
   )
-  toJsonCerts etcd
 '')

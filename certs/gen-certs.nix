@@ -42,29 +42,6 @@ pkgs.writeShellScriptBin "gen-certs" ''
       ${cfssl} gencert -initca $caconf | ${cfssljson} -bare ca -
   }
 
-  function toJsonCerts () {
-      name="$1"
-      folder=$name
-      filename="certs.json"
-      tmpfile="$filename.tmp"
-
-      if [ ! -f $filename ]; then
-          echo '{}' > $filename
-      fi
-      pushd $folder > /dev/null
-      for f in *.pem *-key.pem; do
-          ${jq} --rawfile content "$f" ".$name.\"$f\"=\$content" ../$filename  > ../$tmpfile
-          mv ../$tmpfile ../$filename
-      done
-      if ls *.kubeconfig > /dev/null; then
-          for f in *.kubeconfig; do
-              ${jq} --rawfile content "$f" ".$name.\"$f\"=\$content" ../$filename  > ../$tmpfile
-              mv ../$tmpfile ../$filename
-          done
-      fi
-      popd > /dev/null
-  }
-
   out=''${1:-./generated-certs}
   mkdir -p $out
   (
