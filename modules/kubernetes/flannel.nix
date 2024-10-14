@@ -31,10 +31,10 @@ in
 
       storageBackend = "etcd";
       etcd = {
-          endpoints = etcdEndpoints;
-          keyFile = mkFlannelCert "etcd-client-key.pem";
-          certFile = mkFlannelCert "etcd-client.pem";
-          caFile = mkFlannelCert "etcd-ca.pem";
+        endpoints = etcdEndpoints;
+        keyFile = mkFlannelCert "etcd-client-key.pem";
+        certFile = mkFlannelCert "etcd-client.pem";
+        caFile = mkFlannelCert "etcd-ca.pem";
       };
     };
   };

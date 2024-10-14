@@ -4,14 +4,14 @@
 , ...
 }:
 let
-    inherit (pkgs.callPackage ./lib.nix { }) mkCsr mkProfile;
-    caConf = mkCsr "k8s-front-proxy" {
-        cn = "kubernetes";
-        organization = "k8s-cluster";
-    };
-    frontProxyCsr = mkCsr "front-proxy" {
-        cn = "front-proxy-ca";
-    };
+  inherit (pkgs.callPackage ./lib.nix { }) mkCsr mkProfile;
+  caConf = mkCsr "k8s-front-proxy" {
+    cn = "kubernetes";
+    organization = "k8s-cluster";
+  };
+  frontProxyCsr = mkCsr "front-proxy" {
+    cn = "front-proxy-ca";
+  };
   profile = mkProfile "k8s-client-profile" {
     kubernetes = [
       "signing"
@@ -20,11 +20,12 @@ let
       "server auth"
     ];
   };
-in ''
-mkdir -p kubernetes/front-proxy
-(
-    cd kubernetes/front-proxy
-    genCa ${caConf}
-    genCert kubernetes ${profile} front-proxy ${frontProxyCsr}
-)
+in
+''
+  mkdir -p kubernetes/front-proxy
+  (
+      cd kubernetes/front-proxy
+      genCa ${caConf}
+      genCert kubernetes ${profile} front-proxy ${frontProxyCsr}
+  )
 ''

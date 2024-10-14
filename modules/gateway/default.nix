@@ -4,23 +4,24 @@
 }:
 with lib;
 let
-    extraNatConfigType = {
-        options = {
-            prerouting = mkOption {
-                type = types.lines;
-                description = "A list of prerouting rules to add to the gateway nat";
-                default = "";
-            };
+  extraNatConfigType = {
+    options = {
+      prerouting = mkOption {
+        type = types.lines;
+        description = "A list of prerouting rules to add to the gateway nat";
+        default = "";
+      };
 
-            postrouting = mkOption {
-                type = types.lines;
-                description = "A list of postrouting rules to add to the gateway nat";
-                default = "";
-            };
-        };
+      postrouting = mkOption {
+        type = types.lines;
+        description = "A list of postrouting rules to add to the gateway nat";
+        default = "";
+      };
     };
-    cfg = config.midugh.gateway;
-in {
+  };
+  cfg = config.midugh.gateway;
+in
+{
   options.midugh.gateway = {
     enable = mkEnableOption "Gateway module";
 
@@ -47,8 +48,8 @@ in {
     };
 
     extraNatConfig = mkOption {
-        type = types.submodule extraNatConfigType;
-        default = {};
+      type = types.submodule extraNatConfigType;
+      default = { };
     };
 
     clients = mkOption {

@@ -12,14 +12,14 @@ let
   inherit ((pkgs.callPackage ./lib.nix { }).lib) mkCoreDnsCert;
 in
 {
-options.midugh.k8s-cluster.coredns.forwarder = mkOption {
+  options.midugh.k8s-cluster.coredns.forwarder = mkOption {
     type = types.str;
     default = "1.1.1.1";
     description = ''
-        An external forwarder for the dns server
-        '';
+      An external forwarder for the dns server
+    '';
     example = "8.8.8.8";
-};
+  };
   config = mkIf (top.enable && worker) {
     services.coredns = {
       enable = true;
@@ -40,7 +40,7 @@ options.midugh.k8s-cluster.coredns.forwarder = mkOption {
     networking.firewall.allowedUDPPorts = [ 53 ];
 
     users.groups.coredns = {
-        gid = 993;
+      gid = 993;
     };
     users.users.coredns = {
       group = config.users.groups.coredns.name;

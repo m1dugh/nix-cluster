@@ -123,7 +123,7 @@
               ] ++ extraModules;
             };
           inherit (import ./hosts.nix) nodes apiserver extraConfigs;
-          getExtraConfig = node: if builtins.hasAttr node extraConfigs then extraConfigs."${node}" else {};
+          getExtraConfig = node: if builtins.hasAttr node extraConfigs then extraConfigs."${node}" else { };
           masterNode = builtins.head nodes;
           basicNodes = builtins.tail nodes;
         in
@@ -146,14 +146,16 @@
           (builtins.listToAttrs (builtins.map
             (nodeConfig: {
               inherit (nodeConfig) name;
-              value = makeRpiConfigCustom {
-                inherit apiserver nodeConfig;
-                clusterNodes = nodes;
-              } {
-                extraModules = [
+              value = makeRpiConfigCustom
+                {
+                  inherit apiserver nodeConfig;
+                  clusterNodes = nodes;
+                }
+                {
+                  extraModules = [
                     (getExtraConfig nodeConfig.name)
-                ];
-              };
+                  ];
+                };
             })
             basicNodes));
 

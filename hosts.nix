@@ -5,20 +5,20 @@ in
 {
   extraConfigs = {
     "cluster-master-1" = {
-        midugh.gateway.extraNatConfig.prerouting = ''
-            iifname "eth0" tcp dport { 80, 443 } dnat ip to 192.168.1.146;
-            iifname "wg0" tcp dport { 80, 443 } dnat ip to 192.168.1.147;
-        '';
-        midugh.gateway.extraNatConfig.postrouting = ''
-            oifname "eth0" snat ip to 192.168.1.145;
-        '';
-        networking.firewall.allowedTCPPorts = [ 80 443 ];
+      midugh.gateway.extraNatConfig.prerouting = ''
+        iifname "eth0" tcp dport { 80, 443 } dnat ip to 192.168.1.146;
+        iifname "wg0" tcp dport { 80, 443 } dnat ip to 192.168.1.147;
+      '';
+      midugh.gateway.extraNatConfig.postrouting = ''
+        oifname "eth0" snat ip to 192.168.1.145;
+      '';
+      networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
     "cluster-master-2" = {
-        networking.firewall.allowedTCPPorts = [ 80 443 ];
+      networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
     "cluster-master-3" = {
-        networking.firewall.allowedTCPPorts = [ 80 443 ];
+      networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
   };
   deploymentConfig = {

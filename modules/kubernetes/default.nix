@@ -68,8 +68,8 @@ in
     ];
 
     security.pki.certificateFiles = lists.optionals k8sNode [
-        ../../generated-certs/kubernetes/front-proxy/ca.pem
-        ../../generated-certs/kubernetes/ca.pem
+      ../../generated-certs/kubernetes/front-proxy/ca.pem
+      ../../generated-certs/kubernetes/ca.pem
     ];
 
 
@@ -188,12 +188,12 @@ in
               caFile = mkK8sCert "etcd-ca.pem";
             };
             enableAdmissionPlugins = [
-                "NamespaceLifecycle"
-                "NodeRestriction"
-                "LimitRanger"
-                "ServiceAccount"
-                "DefaultStorageClass"
-                "ResourceQuota"
+              "NamespaceLifecycle"
+              "NodeRestriction"
+              "LimitRanger"
+              "ServiceAccount"
+              "DefaultStorageClass"
+              "ResourceQuota"
             ];
             extraOpts = mkExtraOpts {
               "--requestheader-client-ca-file" = mkK8sCert "front-proxy-ca.pem";
@@ -247,13 +247,13 @@ in
             extraOpts = "--fail-swap-on=false";
 
             cni.config = [{
-                name = "mynet";
-                type = "flannel";
-                cniVersion = "0.3.1";
-                delegate = {
-                    isDefaultGateway = true;
-                    bridge = "mynet";
-                };
+              name = "mynet";
+              type = "flannel";
+              cniVersion = "0.3.1";
+              delegate = {
+                isDefaultGateway = true;
+                bridge = "mynet";
+              };
             }];
           };
       }
