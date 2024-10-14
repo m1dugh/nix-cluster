@@ -1,6 +1,5 @@
 let
   enable = true;
-  remote = false;
 in
 {
   extraConfigs = {
@@ -17,7 +16,13 @@ in
       networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
     "cluster-master-2" = {
-      networking.firewall.allowedTCPPorts = [ 30080 30443 31080 31443 ];
+      networking.firewall.allowedTCPPorts = [ 9100 30080 30443 31080 31443 ];
+    };
+    "cluster-master-3" = {
+      networking.firewall.allowedTCPPorts = [ 9100 ];
+    };
+    "cluster-master-4" = {
+      networking.firewall.allowedTCPPorts = [ 9100 ];
     };
   };
   deploymentConfig = {
