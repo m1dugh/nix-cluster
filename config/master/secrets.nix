@@ -8,4 +8,10 @@ in {
     owner = userInfo.name;
     group = userInfo.group;
   };
+
+  sops.secrets."gateway/cloudflare-token" = {
+    mode = "0440";
+    owner = userInfo.name;
+    group = userInfo.group;
+  };
 }

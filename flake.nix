@@ -134,6 +134,7 @@
                 inherit apiserver;
                 nodeConfig = masterNode;
                 clusterNodes = nodes;
+                colmena = false;
               }
               {
                 extraModules = [
@@ -150,6 +151,7 @@
                 {
                   inherit apiserver nodeConfig;
                   clusterNodes = nodes;
+                  colmena = false;
                 }
                 {
                   extraModules = [

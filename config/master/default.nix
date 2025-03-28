@@ -1,5 +1,6 @@
 { config
 , lib
+, pkgs
 , ...
 }:
 with lib;
@@ -14,12 +15,31 @@ in {
     internalInterface = "wg0";
     externalInterface = "eth0";
     ipAddresses = lists.singleton "10.200.0.1/24";
-    clients = {
-      "10.200.0.2" = "192.168.1.146";
-      "10.200.0.3" = "192.168.1.147";
-      "10.200.0.4" = "192.168.1.148";
-    };
   };
+
+  environment.systemPackages = with pkgs; [
+    ddclient
+  ];
+
+  services.ddclient = {
+    enable = true;
+    passwordFile = secrets."gateway/cloudflare-token".path;
+    protocol = "cloudflare";
+    zone = "midugh.fr";
+    domains = [
+        "gateway.infra.midugh.fr"
+    ];
+    ssl = true;
+    extraConfig = ''
+        usev4=webv4,webv4=ifconfig.me
+    '';
+  };
+
+  networking.firewall.filterForward = true;
+  networking.firewall.extraForwardRules = ''
+      iifname wg0 ip daddr {192.168.1.145,192.168.1.146,192.168.1.147,192.168.1.148} accept comment "accept cluster nodes"
+      iifname wg0 ip daddr 192.168.1.0/24 drop comment "drop non cluster nodes"
+  '';
 
   networking.wireguard.interfaces."wg0" = {
     privateKeyFile = secrets."gateway/wg0.key".path;
