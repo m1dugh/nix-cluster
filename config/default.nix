@@ -22,6 +22,7 @@ with lib;
 
 
     nfs-utils
+    dig
   ];
 
   environment.sessionVariables = {
@@ -67,6 +68,10 @@ with lib;
   midugh.k8s-cluster = {
     enable = true;
     inherit nodeConfig clusterNodes apiserver;
+
+    coredns.extraEntries = {
+      "nas.home" = "192.168.1.12";
+    };
   };
 
   system.stateVersion = "24.05";

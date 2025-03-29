@@ -4,6 +4,8 @@
 }:
 with lib;
 let
+  inherit (nodeConfig) worker master;
+  k8sNode = worker || master;
   mkSecret = filename: {
     keyFile = ../../generated-certs/kubernetes/${filename};
     destDir = "/var/lib/coredns/ssl/";
@@ -13,7 +15,7 @@ let
   };
 in
 {
-  deployment.keys = mkIf nodeConfig.worker ((attrsets.genAttrs [
+  deployment.keys = mkIf k8sNode ((attrsets.genAttrs [
     "coredns.pem"
     "coredns-key.pem"
   ]

@@ -27,18 +27,18 @@ in {
     protocol = "cloudflare";
     zone = "midugh.fr";
     domains = [
-        "gateway.infra.midugh.fr"
+      "gateway.infra.midugh.fr"
     ];
     ssl = true;
     extraConfig = ''
-        usev4=webv4,webv4=ifconfig.me
+      usev4=webv4,webv4=ifconfig.me
     '';
   };
 
   networking.firewall.filterForward = true;
   networking.firewall.extraForwardRules = ''
-      iifname wg0 ip daddr {192.168.1.145,192.168.1.146,192.168.1.147,192.168.1.148} accept comment "accept cluster nodes"
-      iifname wg0 ip daddr 192.168.1.0/24 drop comment "drop non cluster nodes"
+    iifname wg0 ip daddr {192.168.1.145,192.168.1.146,192.168.1.147,192.168.1.148} accept comment "accept cluster nodes"
+    iifname wg0 ip daddr 192.168.1.0/24 drop comment "drop non cluster nodes"
   '';
 
   networking.wireguard.interfaces."wg0" = {
