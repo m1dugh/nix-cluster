@@ -15,6 +15,7 @@ in {
     internalInterface = "wg0";
     externalInterface = "eth0";
     ipAddresses = lists.singleton "10.200.0.1/24";
+    port = 42420;
   };
 
   environment.systemPackages = with pkgs; [

@@ -4,19 +4,42 @@
 }:
 with lib;
 let
-  extraNatConfigType = {
+  portForwardType = {
     options = {
-      prerouting = mkOption {
-        type = types.lines;
-        description = "A list of prerouting rules to add to the gateway nat";
-        default = "";
-      };
+        sourcePort = mkOption {
+            type = types.int;
+            description = "The source port";
+            example = 8080;
+        };
 
-      postrouting = mkOption {
-        type = types.lines;
-        description = "A list of postrouting rules to add to the gateway nat";
-        default = "";
-      };
+        protocol = mkOption {
+            type = types.enum [
+                "tcp"
+                "udp"
+            ];
+            description = "The protocol to forward";
+            default = "tcp";
+        };
+
+        daddr = mkOption {
+            type = types.nullOr types.str;
+            description = "The original destination address";
+            default = null;
+            example = "192.168.1.1";
+        };
+
+        destination = mkOption {
+            type = types.str;
+            description = "The natted destination";
+            example = "192.168.1.2:8080";
+        };
+
+        sourceInterface = mkOption {
+            type = types.nullOr types.str;
+            description = "The source interface";
+            example = "wg0";
+            default = null;
+        };
     };
   };
   cfg = config.midugh.gateway;
@@ -47,9 +70,9 @@ in
       default = [ ];
     };
 
-    extraNatConfig = mkOption {
-      type = types.submodule extraNatConfigType;
-      default = { };
+    portForward = mkOption {
+      type = types.listOf (types.submodule portForwardType);
+      default = [ ];
     };
 
     clients = mkOption {
@@ -75,34 +98,42 @@ in
       }
     ];
 
-    networking = {
-      nat = {
-        enable = true;
-        externalInterface = cfg.externalInterface;
-        internalInterfaces = [ cfg.internalInterface ];
-      };
-      firewall.allowedUDPPorts = [ cfg.port ];
+    boot.kernel.sysctl = {
+      "net.ipv4.conf.all.forwarding" = mkOverride 99 true;
+      "net.ipv4.conf.default.forwarding" = mkOverride 99 true;
+    };
 
-      nftables.tables.gateway-nat =
+    networking.nftables.tables.gateway-nat = {
+        family = "ip";
+        content = 
         let
-          clients = attrsets.mapAttrsToList (vpnAddr: lanAddr: "ip daddr ${vpnAddr} dnat to ${lanAddr};") cfg.clients;
-        in
-        {
-          content = ''
-            chain postrouting {
-                type nat hook postrouting priority 100;
-                ${cfg.extraNatConfig.postrouting}
+            lines = strings.concatMapStringsSep "\n" (f:
+                strings.concatStrings ([
+                    (strings.optionalString (f.sourceInterface != null) "iifname ${f.sourceInterface} ")
+                    (strings.optionalString (f.daddr != null) "ip daddr ${f.daddr} ")
+                    "${f.protocol} dport ${toString f.sourcePort} "
+                    "dnat to ${f.destination};"
+                ])
+            ) cfg.portForward;
+        in ''
+            chain pre {
+                type nat hook prerouting priority dstnat; policy accept;
+                ${lines}
             }
 
-            chain prerouting {
-                type nat hook prerouting priority -100;
-                ${strings.concatStringsSep "\n" clients}
-                ${cfg.extraNatConfig.prerouting}
+            chain post {
+                type nat hook postrouting priority srcnat; policy accept;
+                oifname "${cfg.externalInterface}" masquerade comment "from internal interfaces"
             }
-          '';
 
-          family = "inet";
-        };
+            chain out {
+                type nat hook output priority mangle; policy accept;
+            }
+        '';
+    };
+
+    networking = {
+      firewall.allowedUDPPorts = [ cfg.port ];
 
       wireguard.interfaces.${cfg.internalInterface} =
         let ips = cfg.ipAddresses ++ builtins.attrNames cfg.clients;

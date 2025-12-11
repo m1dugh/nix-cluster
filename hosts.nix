@@ -4,15 +4,32 @@ in
 {
   extraConfigs = {
     "cluster-master-1" = {
-      midugh.gateway.extraNatConfig.prerouting = ''
-        ip daddr {192.168.1.145} iifname "eth0" tcp dport 80 dnat ip to 192.168.1.146:30080;
-        ip daddr {192.168.1.145} iifname "eth0" tcp dport 443 dnat ip to 192.168.1.146:30443;
-        ip daddr 10.200.0.0/24 iifname "wg0" tcp dport 80 dnat ip to 192.168.1.146:31080;
-        ip daddr 10.200.0.0/24 iifname "wg0" tcp dport 443 dnat ip to 192.168.1.146:31443;
-      '';
-      midugh.gateway.extraNatConfig.postrouting = ''
-        oifname "eth0" snat ip to 192.168.1.145;
-      '';
+        midugh.gateway.portForward = [
+            {
+                sourceInterface = "eth0";
+                sourcePort = 80;
+                daddr = "192.168.1.145";
+                destination = "192.168.1.146:30080";
+            }
+            {
+                sourceInterface = "eth0";
+                sourcePort = 443;
+                daddr = "192.168.1.145";
+                destination = "192.168.1.146:30443";
+            }
+            {
+                sourceInterface = "wg0";
+                sourcePort = 80;
+                daddr = "10.200.0.1";
+                destination = "192.168.1.146:31080";
+            }
+            {
+                sourceInterface = "wg0";
+                sourcePort = 443;
+                daddr = "10.200.0.1";
+                destination = "192.168.1.146:31443";
+            }
+        ];
       networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
     "cluster-master-2" = {
