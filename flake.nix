@@ -95,7 +95,7 @@
                     calico-node
                     calico-ipam-cni-plugin
                     ;
-                                        # inherit (oldPackages) containerd;
+                  # inherit (oldPackages) containerd;
                   # Required for building raspi kernel
                   makeModulesClosure = x: prev.makeModulesClosure (x // {
                     allowMissing = true;
@@ -181,54 +181,56 @@
 
 
       colmenaHive = colmena.lib.makeHive
-        (let
-          configs = self.nixosConfigurations;
-        in
-        {
-          meta = {
-            description = "Raspberry pi k8s cluster";
-            nixpkgs = import nixpkgs {
-              system = "aarch64-linux";
-            };
-            nodeNixpkgs = builtins.mapAttrs (_: node: node.pkgs) configs;
-            nodeSpecialArgs = builtins.mapAttrs
-              (_: node: node._module.specialArgs // {
-                colmena = true;
-              })
-              configs;
-          };
-        }
-        // (builtins.mapAttrs
-          (_: conf:
-            let
-              inherit (conf._module.specialArgs) nodeConfig;
-              inherit (import ./hosts.nix) deploymentConfig;
-              targetHost =
-                if
-                  (builtins.hasAttr "${nodeConfig.name}" deploymentConfig) && (builtins.hasAttr "address" deploymentConfig.${nodeConfig.name})
-                then
-                  deploymentConfig.${nodeConfig.name}.address
-                else
-                  nodeConfig.address;
-            in
-            ({
-              deployment = {
-                                    # buildOnTarget = true;
-                inherit targetHost;
-
-                tags = builtins.filter (v: v != null) [
-                  (lib.strings.optionalString (nodeConfig.etcd.enable) "etcd")
-                  (lib.strings.optionalString (nodeConfig.master) "master")
-                  (lib.strings.optionalString (nodeConfig.worker) "worker")
-                ];
+        (
+          let
+            configs = self.nixosConfigurations;
+          in
+          {
+            meta = {
+              description = "Raspberry pi k8s cluster";
+              nixpkgs = import nixpkgs {
+                system = "aarch64-linux";
               };
+              nodeNixpkgs = builtins.mapAttrs (_: node: node.pkgs) configs;
+              nodeSpecialArgs = builtins.mapAttrs
+                (_: node: node._module.specialArgs // {
+                  colmena = true;
+                })
+                configs;
+            };
+          }
+          // (builtins.mapAttrs
+            (_: conf:
+              let
+                inherit (conf._module.specialArgs) nodeConfig;
+                inherit (import ./hosts.nix) deploymentConfig;
+                targetHost =
+                  if
+                    (builtins.hasAttr "${nodeConfig.name}" deploymentConfig) && (builtins.hasAttr "address" deploymentConfig.${nodeConfig.name})
+                  then
+                    deploymentConfig.${nodeConfig.name}.address
+                  else
+                    nodeConfig.address;
+              in
+              ({
+                deployment = {
+                  # buildOnTarget = true;
+                  inherit targetHost;
 
-              imports = conf._module.args.modules ++ [
-                self.nixosModules.colmena
-              ];
+                  tags = builtins.filter (v: v != null) [
+                    (lib.strings.optionalString (nodeConfig.etcd.enable) "etcd")
+                    (lib.strings.optionalString (nodeConfig.master) "master")
+                    (lib.strings.optionalString (nodeConfig.worker) "worker")
+                  ];
+                };
 
-            }))
-          self.nixosConfigurations));
+                imports = conf._module.args.modules ++ [
+                  self.nixosModules.colmena
+                ];
+
+              }))
+            self.nixosConfigurations)
+        );
 
 
       formatter = flake-utils.lib.eachDefaultSystemMap

@@ -6,40 +6,40 @@ with lib;
 let
   portForwardType = {
     options = {
-        sourcePort = mkOption {
-            type = types.int;
-            description = "The source port";
-            example = 8080;
-        };
+      sourcePort = mkOption {
+        type = types.int;
+        description = "The source port";
+        example = 8080;
+      };
 
-        protocol = mkOption {
-            type = types.enum [
-                "tcp"
-                "udp"
-            ];
-            description = "The protocol to forward";
-            default = "tcp";
-        };
+      protocol = mkOption {
+        type = types.enum [
+          "tcp"
+          "udp"
+        ];
+        description = "The protocol to forward";
+        default = "tcp";
+      };
 
-        daddr = mkOption {
-            type = types.nullOr types.str;
-            description = "The original destination address";
-            default = null;
-            example = "192.168.1.1";
-        };
+      daddr = mkOption {
+        type = types.nullOr types.str;
+        description = "The original destination address";
+        default = null;
+        example = "192.168.1.1";
+      };
 
-        destination = mkOption {
-            type = types.str;
-            description = "The natted destination";
-            example = "192.168.1.2:8080";
-        };
+      destination = mkOption {
+        type = types.str;
+        description = "The natted destination";
+        example = "192.168.1.2:8080";
+      };
 
-        sourceInterface = mkOption {
-            type = types.nullOr types.str;
-            description = "The source interface";
-            example = "wg0";
-            default = null;
-        };
+      sourceInterface = mkOption {
+        type = types.nullOr types.str;
+        description = "The source interface";
+        example = "wg0";
+        default = null;
+      };
     };
   };
   cfg = config.midugh.gateway;
@@ -104,31 +104,34 @@ in
     };
 
     networking.nftables.tables.gateway-nat = {
-        family = "ip";
-        content = 
+      family = "ip";
+      content =
         let
-            lines = strings.concatMapStringsSep "\n" (f:
-                strings.concatStrings ([
-                    (strings.optionalString (f.sourceInterface != null) "iifname ${f.sourceInterface} ")
-                    (strings.optionalString (f.daddr != null) "ip daddr ${f.daddr} ")
-                    "${f.protocol} dport ${toString f.sourcePort} "
-                    "dnat to ${f.destination};"
-                ])
-            ) cfg.portForward;
-        in ''
-            chain pre {
-                type nat hook prerouting priority dstnat; policy accept;
-                ${lines}
-            }
+          lines = strings.concatMapStringsSep "\n"
+            (f:
+              strings.concatStrings ([
+                (strings.optionalString (f.sourceInterface != null) "iifname ${f.sourceInterface} ")
+                (strings.optionalString (f.daddr != null) "ip daddr ${f.daddr} ")
+                "${f.protocol} dport ${toString f.sourcePort} "
+                "dnat to ${f.destination};"
+              ])
+            )
+            cfg.portForward;
+        in
+        ''
+          chain pre {
+              type nat hook prerouting priority dstnat; policy accept;
+              ${lines}
+          }
 
-            chain post {
-                type nat hook postrouting priority srcnat; policy accept;
-                oifname "${cfg.externalInterface}" masquerade comment "from internal interfaces"
-            }
+          chain post {
+              type nat hook postrouting priority srcnat; policy accept;
+              oifname "${cfg.externalInterface}" masquerade comment "from internal interfaces"
+          }
 
-            chain out {
-                type nat hook output priority mangle; policy accept;
-            }
+          chain out {
+              type nat hook output priority mangle; policy accept;
+          }
         '';
     };
 
