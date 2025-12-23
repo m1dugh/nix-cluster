@@ -2,7 +2,7 @@
   description = "A flake for k8s nixos cluster on rapsberry pis";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-old.url = "github:NixOS/nixpkgs/nixos-23.11";
     systems.url = "github:nix-systems/default-linux";
 
@@ -15,6 +15,8 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
+
+    colmena.url = "github:zhaofengli/colmena";
 
     flake-utils = {
       url = "github:numtide/flake-utils";
@@ -29,6 +31,7 @@
     , sops-nix
     , flake-utils
     , nixos-hardware
+    , colmena
     , ...
     }:
 
@@ -92,7 +95,7 @@
                     calico-node
                     calico-ipam-cni-plugin
                     ;
-                  inherit (oldPackages) containerd;
+                                        # inherit (oldPackages) containerd;
                   # Required for building raspi kernel
                   makeModulesClosure = x: prev.makeModulesClosure (x // {
                     allowMissing = true;
@@ -169,14 +172,16 @@
         in
         {
           default = pkgs.mkShell {
-            nativeBuildInputs = with pkgs; [
-              colmena
+            nativeBuildInputs = [
+              colmena.packages.${system}.colmena
             ];
           };
         });
 
-      colmena =
-        let
+
+
+      colmenaHive = colmena.lib.makeHive
+        (let
           configs = self.nixosConfigurations;
         in
         {
@@ -208,7 +213,7 @@
             in
             ({
               deployment = {
-                buildOnTarget = true;
+                                    # buildOnTarget = true;
                 inherit targetHost;
 
                 tags = builtins.filter (v: v != null) [
@@ -223,7 +228,7 @@
               ];
 
             }))
-          self.nixosConfigurations);
+          self.nixosConfigurations));
 
 
       formatter = flake-utils.lib.eachDefaultSystemMap
