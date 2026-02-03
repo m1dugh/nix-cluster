@@ -19,6 +19,36 @@ class PKIManager:
     locality_name: str = "Paris"
     organization_name: str = "Kubernetes Root CA"
 
+    def generate_sa_key(self) -> rsa.RSAPrivateKey:
+        public_path = f"{self.root_folder}/sa.pub"
+        private_path = f"{self.root_folder}/sa.key"
+
+        if os.path.exists(public_path) and os.path.exists(private_path):
+            with open(private_path, "rb") as f:
+                pkey = serialization.load_pem_private_key(
+                    f.read(),
+                    password=None,
+                )
+            return pkey
+        os.makedirs(self.root_folder, exist_ok=True)
+        pkey = rsa.generate_private_key(public_exponent=65537, key_size=self.key_size)
+        with open(private_path, "wb") as f:
+            f.write(
+                pkey.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
+        with open(public_path, "wb") as f:
+            f.write(
+                pkey.public_key().public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+            )
+        return pkey
+
     def _generate_sans(self, sans: list[str]) -> x509.SubjectAlternativeName:
         san_list = []
         for san in sans:
@@ -467,7 +497,7 @@ class PKIManager:
 
     def gen_kubelet_cert(self, node_name: str):
         root_cert, root_key = self.gen_root_ca()
-        folder = f"{self.root_folder}/{node_name}"
+        folder = f"{self.root_folder}/nodes/{node_name}"
         self._gen_cert(
             folder,
             f"{folder}/kubelet.crt",
@@ -568,6 +598,7 @@ def init_pki(pki_manager: PKIManager):
     pki_manager.gen_root_ca()
     pki_manager.gen_etcd_ca()
     pki_manager.gen_front_proxy_ca()
+    pki_manager.generate_sa_key()
 
 def generate_cert(pki_manager: PKIManager, args):
     command = args.generate_command
