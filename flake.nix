@@ -3,18 +3,16 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixpkgs-old.url = "github:NixOS/nixpkgs/nixos-23.11";
     systems.url = "github:nix-systems/default-linux";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs = {
-        nixpkgs-stable.follows = "nixpkgs";
-        nixpkgs.follows = "nixpkgs";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    treefmt-nix.url  = "github:numtide/treefmt-nix";
 
     colmena.url = "github:zhaofengli/colmena";
 
@@ -27,11 +25,11 @@
   outputs =
     { self
     , nixpkgs
-    , nixpkgs-old
     , sops-nix
     , flake-utils
     , nixos-hardware
     , colmena
+    , treefmt-nix
     , ...
     }:
 
@@ -42,14 +40,9 @@
           let
             pkgs = nixpkgs.legacyPackages.${system};
             certs = pkgs.callPackage ./certs { };
-            localPackages = pkgs.callPackage ./packages { };
           in
           {
             inherit (certs) gen-certs build-config deploy-certs;
-            inherit (localPackages)
-              calico-node
-              calico-ipam-cni-plugin
-              ;
           });
       nixosModules = rec {
         kubernetes = {
@@ -83,19 +76,10 @@
       nixosConfigurations =
         let
           pkgsFor = flake-utils.lib.eachDefaultSystemMap (system:
-            let
-              localPackages = self.packages.${system};
-              oldPackages = nixpkgs-old.legacyPackages.${system};
-            in
             import nixpkgs {
               inherit system;
               overlays = [
                 (final: prev: {
-                  inherit (localPackages)
-                    calico-node
-                    calico-ipam-cni-plugin
-                    ;
-                  # inherit (oldPackages) containerd;
                   # Required for building raspi kernel
                   makeModulesClosure = x: prev.makeModulesClosure (x // {
                     allowMissing = true;
@@ -233,7 +217,14 @@
         );
 
 
-      formatter = flake-utils.lib.eachDefaultSystemMap
-        (system: nixpkgs.legacyPackages.${system}.nixpkgs-fmt);
+            formatter = flake-utils.lib.eachDefaultSystemMap (system: 
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                    treeFmtEval = (treefmt-nix.lib.evalModule pkgs {
+                        projectRootFile = "flake.nix";
+                        programs.nixpkgs-fmt.enable = true;
+                    });
+                in treeFmtEval.config.build.wrapper
+            );
     };
 }
