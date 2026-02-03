@@ -2,6 +2,7 @@ let
   enable = true;
 in
 {
+  deploymentConfig = {};
   extraConfigs = {
     "cluster-master-1" = {
       midugh.gateway.portForward = [
@@ -38,22 +39,8 @@ in
     "cluster-master-3" = {
       networking.firewall.allowedTCPPorts = [ 9100 ];
     };
-    "cluster-master-4" = {
+    "cluster-worker-1" = {
       networking.firewall.allowedTCPPorts = [ 9100 ];
-    };
-  };
-  deploymentConfig = {
-    "cluster-master-1" = {
-      address = "192.168.1.145";
-    };
-    "cluster-master-2" = {
-      address = "192.168.1.146";
-    };
-    "cluster-master-3" = {
-      address = "192.168.1.147";
-    };
-    "cluster-master-4" = {
-      address = "192.168.1.148";
     };
   };
   apiserver = {
@@ -99,7 +86,7 @@ in
       master = enable;
     }
     {
-      name = "cluster-master-4";
+      name = "cluster-worker-1";
       address = "192.168.1.148";
       etcd.enable = false;
       worker = enable;

@@ -49,9 +49,6 @@ with lib;
 
     nftables.enable = true;
     hostName = nodeConfig.name;
-    defaultGateway = {
-      address = "192.168.1.1";
-    };
     interfaces = {
       eth0 = {
         useDHCP = true;
@@ -68,10 +65,6 @@ with lib;
   midugh.k8s-cluster = {
     enable = true;
     inherit nodeConfig clusterNodes apiserver;
-
-    coredns.extraEntries = {
-      "nas.home" = "192.168.1.12";
-    };
   };
 
   system.stateVersion = "25.11";

@@ -57,7 +57,7 @@ in
         '';
     };
 
-    services.kubernetes.kubelet.clusterDns = address;
+    services.kubernetes.kubelet.clusterDns = lib.lists.singleton address;
 
     networking.firewall.allowedUDPPorts = [ 53 ];
 
