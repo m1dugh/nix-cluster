@@ -1,13 +1,14 @@
 { config
+, lib
 , ...
 }:
 let cfg = config.midugh.kubernetes;
 in {
-  services.kubernetes.proxy = {
+  config.services.kubernetes.proxy = lib.mkIf (cfg.enable) {
     enable = true;
     kubeconfig = {
-      keyFile = "${cfg.pkiRootDir}/server.key";
-      certFile = "${cfg.pkiRootDir}/server.crt";
+      keyFile = "${cfg.pkiRootDir}/kube-proxy.key";
+      certFile = "${cfg.pkiRootDir}/kube-proxy.crt";
       caFile = "${cfg.pkiRootDir}/ca.crt";
     };
   };

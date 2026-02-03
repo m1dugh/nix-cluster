@@ -62,10 +62,5 @@ with lib;
     };
   };
 
-  midugh.k8s-cluster = {
-    enable = true;
-    inherit nodeConfig clusterNodes apiserver;
-  };
-
   system.stateVersion = "25.11";
 }

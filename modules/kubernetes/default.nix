@@ -18,6 +18,10 @@ in
 {
   options.midugh.kubernetes = {
     enable = lib.mkEnableOption "Kubernetes module";
+    nodeName = lib.mkOption {
+      type = lib.types.str;
+      description = "The name of the node";
+    };
 
     pkiRootDir = lib.mkOption {
       type = lib.types.str;
@@ -25,27 +29,29 @@ in
       default = "/var/lib/kubernetes/pki/";
     };
 
+    pkiLocalDir = lib.mkOption {
+      type = lib.types.str;
+      description = "Path to the local pki folder";
+    };
+
     master = lib.mkOption {
       type = masterOptionType;
       description = "Kubernetes master node configuration";
+      default = { };
     };
   };
 
-  config = lib.mkIf cfg.enable (
-    let
-      imports = [
+    imports = [
         ./kubelet.nix
         ./container-runtime.nix
         ./kube-proxy.nix
-      ] ++ (lib.lists.optional cfg.master.enable ([
         ./kube-apiserver.nix
         ./kube-controller-manager.nix
         ./kube-scheduler.nix
         ./etcd.nix
-      ]));
-    in
-    {
-      inherit imports;
-    }
-  );
+    ];
+
+    config.services.kubernetes = lib.mkIf cfg.enable {
+        easyCerts = false;
+    };
 }

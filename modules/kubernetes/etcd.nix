@@ -1,4 +1,5 @@
 { config
+, lib
 , ...
 }:
 let
@@ -6,7 +7,7 @@ let
   etcdDataDir = cfg.pkiRootDir + "/etcd";
 in
 {
-  services.etcd = {
+  config.services.etcd = lib.mkIf (cfg.enable && cfg.master.enable) {
     enable = true;
     trustedCaFile = etcdDataDir + "/ca.crt";
     peerTrustedCaFile = etcdDataDir + "/ca.crt";
@@ -15,6 +16,5 @@ in
     peerKeyFile = etcdDataDir + "/peer.key";
     peerCertFile = etcdDataDir + "/peer.crt";
     openFirewall = true;
-    clientCertAuth = true;
   };
 }

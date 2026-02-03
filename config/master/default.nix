@@ -1,6 +1,7 @@
 { config
 , lib
 , pkgs
+, nodeConfig
 , ...
 }:
 with lib;
@@ -17,6 +18,15 @@ in {
     ipAddresses = lists.singleton "10.200.0.1/24";
     port = 42420;
   };
+
+  midugh.kubernetes = {
+    enable = true;
+    nodeName = nodeConfig.name;
+    master.enable = true;
+    pkiLocalDir = "./pki/";
+  };
+
+  services.kubernetes.masterAddress = "192.168.1.145";
 
   environment.systemPackages = with pkgs; [
     ddclient

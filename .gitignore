@@ -5,6 +5,6 @@
 # test machines disks
 *.qcow2
 
-/generated-certs/**/*-key.pem
-
 /admin.kubeconfig
+
+/pki

@@ -1,13 +1,14 @@
 { config
+, lib
 , ...
 }:
 let cfg = config.midugh.kubernetes;
 in {
-  services.kubernetes.apiserver = {
+  config.services.kubernetes.apiserver = lib.mkIf (cfg.enable && cfg.master.enable) {
     enable = true;
     etcd.caFile = "${cfg.pkiRootDir}/etcd/ca.crt";
-    etcd.keyFile = "${cfg.pkiRootDir}/etcd/apiserver-etcd-client.key";
-    etcd.certFile = "${cfg.pkiRootDir}/etcd/apiserver-etcd-client.crt";
+    etcd.keyFile = "${cfg.pkiRootDir}/apiserver-etcd-client.key";
+    etcd.certFile = "${cfg.pkiRootDir}/apiserver-etcd-client.crt";
 
     clientCaFile = "${cfg.pkiRootDir}/ca.crt";
     tlsKeyFile = "${cfg.pkiRootDir}/apiserver.key";
@@ -19,10 +20,11 @@ in {
     proxyClientCertFile = "${cfg.pkiRootDir}/front-proxy-client.crt";
 
     serviceAccountKeyFile = "${cfg.pkiRootDir}/sa.pub";
+    serviceAccountSigningKeyFile = "${cfg.pkiRootDir}/sa.key";
 
-    extraArgs = [
-      "--requestheader-client-ca-file=${cfg.pkiRootDir}/front-proxy-ca.crt"
-    ];
+    extraOpts = "--requestheader-client-ca-file=${cfg.pkiRootDir}/front-proxy-ca.crt";
 
   };
+
+    config.networking.firewall.allowedTCPPorts = lib.lists.optional (cfg.enable && cfg.master.enable) config.services.kubernetes.apiserver.securePort;
 }

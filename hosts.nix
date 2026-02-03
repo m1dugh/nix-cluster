@@ -34,9 +34,11 @@ in
       networking.firewall.allowedTCPPorts = [ 80 443 ];
     };
     "cluster-master-2" = {
+      midugh.kubernetes.enable = false;
       networking.firewall.allowedTCPPorts = [ 9100 30080 30443 31080 31443 ];
     };
     "cluster-master-3" = {
+      midugh.kubernetes.enable = false;
       networking.firewall.allowedTCPPorts = [ 9100 ];
     };
     "cluster-worker-1" = {

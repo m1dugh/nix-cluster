@@ -309,7 +309,7 @@ class PKIManager:
 
     def gen_kube_etcd_cert(self, server_name: str, hosts: list[str]):
         etcd_ca_cert, etcd_ca_key = self.gen_etcd_ca()
-        folder = f"{self.root_folder}/nodes/{server_name}"
+        folder = f"{self.root_folder}/nodes/{server_name}/etcd/"
         return self._gen_cert(
             folder,
             f"{folder}/server.crt",
@@ -450,6 +450,24 @@ class PKIManager:
             self.locality_name,
             None,
             common_name="front-proxy-client",
+            ca=ca,
+            ca_key=ca_key,
+            server=False,
+            client=True,
+        )
+
+    def gen_kube_proxy_cert(self, server_name: str):
+        ca, ca_key = self.gen_root_ca()
+        folder = f"{self.root_folder}/nodes/{server_name}"
+        return self._gen_cert(
+            folder,
+            f"{folder}/kube-proxy.crt",
+            f"{folder}/kube-proxy.key",
+            self.country_name,
+            self.state_or_province_name,
+            self.locality_name,
+            None,
+            common_name="kube-proxy",
             ca=ca,
             ca_key=ca_key,
             server=False,
@@ -621,6 +639,8 @@ def generate_cert(pki_manager: PKIManager, args):
         pki_manager.gen_kube_apiserver_kubelet_cert(args.hostname)
     if command == "front-proxy-client" or all:
         pki_manager.gen_front_proxy_client_cert(args.hostname)
+    if command == "kube-proxy" or all:
+        pki_manager.gen_kube_proxy_cert(args.hostname)
     if command == "user":
         pki_manager.gen_user_cert(args.common_name, args.group)
 
@@ -634,6 +654,7 @@ def bootstrap_node(pki_manager: PKIManager, args):
     pki_manager.gen_kube_apiserver_cert(node_name, [node_ip, node_name, "kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc.cluster.local"])
     pki_manager.gen_kube_apiserver_kubelet_cert(node_name)
     pki_manager.gen_front_proxy_client_cert(node_name)
+    pki_manager.gen_kube_proxy_cert(node_name)
 
     pki_manager.gen_kubelet_cert(node_name)
     pki_manager.gen_controller_manager_cert(node_name)
@@ -661,6 +682,7 @@ def configure_cert_parser(parser: ArgumentParser):
     _configure_cert_subparser(subparsers, "kube-apiserver")
     _configure_cert_subparser(subparsers, "kube-apiserver-kubelet-client")
     _configure_cert_subparser(subparsers, "front-proxy-client")
+    _configure_cert_subparser(subparsers, "kube-proxy")
     all_parser = _configure_cert_subparser(subparsers, "all")
     all_parser.add_argument("--no-server", action='store_true', help="Generate server certificates.")
     all_parser.add_argument("--no-worker", action='store_true', help="Generate worker certificates.")

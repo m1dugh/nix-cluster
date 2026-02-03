@@ -1,9 +1,10 @@
 { config
+, lib
 , ...
 }:
 let cfg = config.midugh.kubernetes;
 in {
-  services.kubernetes.kubelet = {
+  config.services.kubernetes.kubelet = lib.mkIf (cfg.enable) {
     enable = true;
     kubeconfig = {
       keyFile = "${cfg.pkiRootDir}/kubelet.key";

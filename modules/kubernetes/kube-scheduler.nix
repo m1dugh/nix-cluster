@@ -1,9 +1,10 @@
 { config
+, lib
 , ...
 }:
 let cfg = config.midugh.kubernetes;
 in {
-  services.kubernetes.scheduler = {
+  config.services.kubernetes.scheduler = lib.mkIf (cfg.enable && cfg.master.enable) {
     enable = true;
     kubeconfig = {
       keyFile = "${cfg.pkiRootDir}/scheduler.key";

@@ -209,7 +209,7 @@
                 };
 
                 imports = conf._module.args.modules ++ [
-                  self.nixosModules.colmena
+                    self.nixosModules.colmena
                 ];
 
               }))
