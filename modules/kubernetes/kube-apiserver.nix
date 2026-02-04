@@ -23,7 +23,6 @@ in {
     serviceAccountSigningKeyFile = "${cfg.pkiRootDir}/sa.key";
 
     extraOpts = "--requestheader-client-ca-file=${cfg.pkiRootDir}/front-proxy-ca.crt";
-
   };
 
   config.networking.firewall.allowedTCPPorts = lib.lists.optional (cfg.enable && cfg.master.enable) config.services.kubernetes.apiserver.securePort;

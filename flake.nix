@@ -1,3 +1,5 @@
+# vi:ts=2
+# vi:sw=2
 {
   description = "A flake for k8s nixos cluster on rapsberry pis";
 
@@ -11,8 +13,6 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    poetry2nix.url = "github:nix-community/poetry2nix";
 
     treefmt-nix.url = "github:numtide/treefmt-nix";
 
@@ -32,23 +32,18 @@
     , nixos-hardware
     , colmena
     , treefmt-nix
-    , poetry2nix
     , ...
     }:
 
-    let inherit (nixpkgs) lib;
+    let
+      inherit (nixpkgs) lib;
+      cluster-config = import ./cluster-config.nix {
+        inherit lib;
+      };
     in {
       packages =
-        flake-utils.lib.eachDefaultSystemMap (system:
-          let
-            pkgs = nixpkgs.legacyPackages.${system};
-            inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryApplication;
-          in
-          {
-            inherit (import ./pkgs {
-              inherit pkgs mkPoetryApplication;
-            }) kube-certs;
-          });
+        flake-utils.lib.eachDefaultSystemMap (system: {});
+
       nixosModules = rec {
         kubernetes = {
           imports = [
@@ -80,79 +75,37 @@
 
       nixosConfigurations =
         let
-          pkgsFor = flake-utils.lib.eachDefaultSystemMap (system:
-            import nixpkgs {
-              inherit system;
-              overlays = [
-                (final: prev: {
-                  # Required for building raspi kernel
-                  makeModulesClosure = x: prev.makeModulesClosure (x // {
-                    allowMissing = true;
-                  });
-                })
-              ];
-            }
-          );
-          makeRpiConfigCustom =
-            args:
-            { extraModules ? [ ]
-            }:
-            let
-              system = "aarch64-linux";
-            in
-            lib.nixosSystem {
-              inherit system;
-              pkgs = pkgsFor.${system};
-
-              specialArgs = args;
-
-              modules = [
+          system = "aarch64-linux";
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = lib.lists.singleton (final: prev: {
+              # allow missing modules for raspi
+              makeModulesClosure = x: prev.makeModulesClosure (x // {
+                allowMissing = true;
+              });
+            });
+          };
+        in lib.attrsets.mapAttrs (name: cfg: lib.nixosSystem {
+            inherit pkgs system;
+            specialArgs = {
+              inherit cluster-config;
+              nodeConfig = cfg // {
+                  inherit name;
+              };
+            };
+            modules = [
                 sops-nix.nixosModules.sops
                 nixos-hardware.nixosModules.raspberry-pi-4
                 "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
-                self.nixosModules.basic
-                self.nixosModules.raspi
-              ] ++ extraModules;
-            };
-          inherit (import ./hosts.nix) nodes apiserver extraConfigs;
-          getExtraConfig = node: if builtins.hasAttr node extraConfigs then extraConfigs."${node}" else { };
-          masterNode = builtins.head nodes;
-          basicNodes = builtins.tail nodes;
-        in
-        lib.recursiveUpdate
-          {
-            "${masterNode.name}" = makeRpiConfigCustom
-              {
-                inherit apiserver;
-                nodeConfig = masterNode;
-                clusterNodes = nodes;
-                colmena = false;
-              }
-              {
-                extraModules = [
-                  ./config/master
-                  ./config/nfs.nix
-                  (getExtraConfig masterNode.name)
-                ];
-              };
-          }
-          (builtins.listToAttrs (builtins.map
-            (nodeConfig: {
-              inherit (nodeConfig) name;
-              value = makeRpiConfigCustom
-                {
-                  inherit apiserver nodeConfig;
-                  clusterNodes = nodes;
-                  colmena = false;
-                }
-                {
-                  extraModules = [
-                    (getExtraConfig nodeConfig.name)
-                  ];
-                };
-            })
-            basicNodes));
-
+            ]
+              ++
+            (with self.outputs.nixosModules; [
+              raspi
+              basic
+            ]) ++ lib.lists.optionals (name == cluster-config.gateway.node) [
+                ./config/master
+            ];
+        }) cluster-config.nodes;
       devShells = flake-utils.lib.eachDefaultSystemMap (system:
         let
           pkgs = import nixpkgs {
@@ -168,59 +121,36 @@
         });
 
 
-
-      colmenaHive = colmena.lib.makeHive
-        (
-          let
-            configs = self.nixosConfigurations;
-          in
-          {
+      colmenaHive = colmena.lib.makeHive (
+        let configs = self.nixosConfigurations;
+          system = "aarch64-linux";
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = lib.lists.singleton (final: prev: {
+              # allow missing modules for raspi
+              makeModulesClosure = x: prev.makeModulesClosure (x // {
+                allowMissing = true;
+              });
+            });
+          };
+        in
+          ({
             meta = {
-              description = "Raspberry pi k8s cluster";
-              nixpkgs = import nixpkgs {
-                system = "aarch64-linux";
+              nixpkgs = pkgs;
+              specialArgs = {
+                colmena = true;
               };
-              nodeNixpkgs = builtins.mapAttrs (_: node: node.pkgs) configs;
-              nodeSpecialArgs = builtins.mapAttrs
-                (_: node: node._module.specialArgs // {
-                  colmena = true;
-                })
-                configs;
+              nodeSpecialArgs = builtins.mapAttrs (_: node: node._module.specialArgs) configs;
             };
-          }
-          // (builtins.mapAttrs
-            (_: conf:
-              let
-                inherit (conf._module.specialArgs) nodeConfig;
-                inherit (import ./hosts.nix) deploymentConfig;
-                targetHost =
-                  if
-                    (builtins.hasAttr "${nodeConfig.name}" deploymentConfig) && (builtins.hasAttr "address" deploymentConfig.${nodeConfig.name})
-                  then
-                    deploymentConfig.${nodeConfig.name}.address
-                  else
-                    nodeConfig.address;
-              in
-              ({
-                deployment = {
-                  # buildOnTarget = true;
-                  inherit targetHost;
-
-                  tags = builtins.filter (v: v != null) [
-                    (lib.strings.optionalString (nodeConfig.etcd.enable) "etcd")
-                    (lib.strings.optionalString (nodeConfig.master) "master")
-                    (lib.strings.optionalString (nodeConfig.worker) "worker")
-                  ];
-                };
-
-                imports = conf._module.args.modules ++ [
-                  self.nixosModules.colmena
-                ];
-
-              }))
-            self.nixosConfigurations)
-        );
-
+          } // (lib.attrsets.mapAttrs (name: cfg: 
+              let config = cluster-config.nodes."${name}";
+            in {
+              deployment.targetHost = config.address;
+              imports = configs."${name}"._module.args.modules ++ [
+                self.nixosModules.colmena
+              ];
+          }) cluster-config.nodes ))
+      );
 
       formatter = flake-utils.lib.eachDefaultSystemMap (system:
         let

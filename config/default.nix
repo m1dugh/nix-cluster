@@ -1,16 +1,42 @@
 { nodeConfig
-, apiserver
+, cluster-config
 , pkgs
-, clusterNodes
 , lib
 , ...
 }:
-with lib;
+let
+  etcdNodes = lib.attrsets.filterAttrs (name: cfg: builtins.elem "master" cfg.roles) cluster-config.nodes;
+  etcdScheme = "https";
+in
 {
   imports = [
     ./secrets.nix
     ./hardware-configuration.nix
   ];
+
+  networking.extraHosts =
+    let entries = lib.attrsets.mapAttrsToList (name: cfg:  "${cfg.address}\t${name}") cluster-config.nodes;
+    in lib.strings.concatLines entries;
+
+  services.etcd = 
+    let
+      isInitialNode = builtins.elem nodeConfig.name cluster-config.etcd.initialNodes;
+      initialEtcdNodes = lib.attrsets.filterAttrs (name: _: builtins.elem name cluster-config.etcd.initialNodes) etcdNodes;
+    in {
+      name = nodeConfig.name;
+      initialAdvertisePeerUrls = [ "${etcdScheme}://${nodeConfig.address}:2380" ];
+      listenPeerUrls = [ "${etcdScheme}://${nodeConfig.address}:2380" ];
+      listenClientUrls = [ "${etcdScheme}://${nodeConfig.address}:2379" "${etcdScheme}://127.0.0.1:2379" ];
+      advertiseClientUrls = [ "${etcdScheme}://${nodeConfig.address}:2379" ];
+      initialCluster = (lib.attrsets.mapAttrsToList (name: cfg: "${name}=${etcdScheme}://${cfg.address}:2380") initialEtcdNodes) ++ (lib.lists.optional (!isInitialNode) "${nodeConfig.name}=${etcdScheme}://${nodeConfig.address}:2380");
+
+      initialClusterState = if isInitialNode then "new" else "existing";
+  };
+  
+  services.kubernetes.apiserver.etcd = 
+  {
+    servers = lib.attrsets.mapAttrsToList (_: cfg: "${etcdScheme}://${cfg.address}:2379") etcdNodes;
+  };
 
   environment.systemPackages = with pkgs; [
     openssl
@@ -42,11 +68,6 @@ with lib;
   };
 
   networking = {
-    extraHosts =
-      let
-        entries = map ({ name, address, ... }: "${address}   ${name}") clusterNodes;
-      in
-      strings.concatStringsSep "\n" entries;
 
     nftables.enable = true;
     hostName = nodeConfig.name;
@@ -62,6 +83,16 @@ with lib;
       };
     };
   };
+
+  midugh.kubernetes = {
+    enable = true;
+    nodeName = nodeConfig.name;
+    master.enable = builtins.elem "master" nodeConfig.roles;
+    master.schedulable = builtins.elem "worker" nodeConfig.roles;
+    pkiLocalDir = "./pki/";
+  };
+
+  services.kubernetes.masterAddress = cluster-config.kubernetes.masterAddress;
 
   system.stateVersion = "25.11";
 }
