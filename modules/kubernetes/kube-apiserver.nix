@@ -26,5 +26,5 @@ in {
 
   };
 
-    config.networking.firewall.allowedTCPPorts = lib.lists.optional (cfg.enable && cfg.master.enable) config.services.kubernetes.apiserver.securePort;
+  config.networking.firewall.allowedTCPPorts = lib.lists.optional (cfg.enable && cfg.master.enable) config.services.kubernetes.apiserver.securePort;
 }

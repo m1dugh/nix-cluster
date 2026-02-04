@@ -11,6 +11,7 @@ import ipaddress
 
 import os
 
+
 @dataclass
 class PKIManager:
     root_folder: str
@@ -61,7 +62,9 @@ class PKIManager:
                 san_list.append(x509.DNSName(san))
         return x509.SubjectAlternativeName(san_list)
 
-    def _generate_key_usages(self, client: bool, server: bool) -> tuple[x509.KeyUsage,x509.ExtendedKeyUsage]:
+    def _generate_key_usages(
+        self, client: bool, server: bool
+    ) -> tuple[x509.KeyUsage, x509.ExtendedKeyUsage]:
         usages = {
             "content_commitment": False,
             "data_encipherment": False,
@@ -73,37 +76,41 @@ class PKIManager:
         }
         extended_usages = []
         if server:
-            usages.update({
-                "digital_signature": True,
-                "key_encipherment": True,
-            })
+            usages.update(
+                {
+                    "digital_signature": True,
+                    "key_encipherment": True,
+                }
+            )
             extended_usages.append(x509.ExtendedKeyUsageOID.SERVER_AUTH)
         if client:
-            usages.update({
-                "digital_signature": True,
-                "key_encipherment": True,
-            })
+            usages.update(
+                {
+                    "digital_signature": True,
+                    "key_encipherment": True,
+                }
+            )
             extended_usages.append(x509.ExtendedKeyUsageOID.CLIENT_AUTH)
         return (x509.KeyUsage(**usages), x509.ExtendedKeyUsage(extended_usages))
 
-    def _gen_cert(self,
-                  root_folder: str,
-                  cert_path: str,
-                  cert_key_path: str,
-                  country_name: str,
-                  state_or_province_name: str,
-                  locality_name: str,
-                  organization_name: str | None,
-                  common_name: str,
-                  ca: x509.Certificate,
-                  ca_key: rsa.RSAPrivateKey,
-                  sans: list[str] = None,
-                  client: bool = False,
-                  server: bool = False,
-                  days: int = 365,
-                  tz: timezone = UTC,
-                  ) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
-
+    def _gen_cert(
+        self,
+        root_folder: str,
+        cert_path: str,
+        cert_key_path: str,
+        country_name: str,
+        state_or_province_name: str,
+        locality_name: str,
+        organization_name: str | None,
+        common_name: str,
+        ca: x509.Certificate,
+        ca_key: rsa.RSAPrivateKey,
+        sans: list[str] = None,
+        client: bool = False,
+        server: bool = False,
+        days: int = 365,
+        tz: timezone = UTC,
+    ) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
         if os.path.exists(cert_path) and os.path.exists(cert_key_path):
             with open(cert_key_path, "rb") as f:
                 pkey = serialization.load_pem_private_key(
@@ -155,9 +162,7 @@ class PKIManager:
             .public_key(pkey.public_key())
             .serial_number(x509.random_serial_number())
             .not_valid_before(datetime.now(tz))
-            .not_valid_after(
-                datetime.now(tz) + timedelta(days=days)
-            )
+            .not_valid_after(datetime.now(tz) + timedelta(days=days))
             .add_extension(
                 x509.BasicConstraints(ca=False, path_length=None),
                 critical=True,
@@ -184,7 +189,9 @@ class PKIManager:
         if ca_key is not None:
             certificate = certificate.add_extension(
                 x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(
-                    ca.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
+                    ca.extensions.get_extension_for_class(
+                        x509.SubjectKeyIdentifier
+                    ).value
                 ),
                 critical=False,
             )
@@ -194,29 +201,28 @@ class PKIManager:
             algorithm=hashes.SHA256(),
         )
         with open(cert_path, "wb") as f:
-            f.write(
-                certificate.public_bytes(
-                    encoding=serialization.Encoding.PEM
-                )
-            )
+            f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
 
         return (certificate, pkey)
 
-    def _gen_ca(self,
-               root_folder: str,
-               ca_path: str,
-               ca_key_path: str,
-               country_name: str,
-               state_or_province_name: str,
-               locality_name: str,
-               organization_name: str,
-                common_name: str,
-                parent_ca: x509.Certificate = None,
-                parent_ca_key: rsa.RSAPrivateKey = None,
-                days: int = 3650,
-                tz: timezone = UTC) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
-
-        assert (parent_ca is not None) == (parent_ca_key is not None), "either both parent_ca and parent_ca_key must be set or none of them"
+    def _gen_ca(
+        self,
+        root_folder: str,
+        ca_path: str,
+        ca_key_path: str,
+        country_name: str,
+        state_or_province_name: str,
+        locality_name: str,
+        organization_name: str,
+        common_name: str,
+        parent_ca: x509.Certificate = None,
+        parent_ca_key: rsa.RSAPrivateKey = None,
+        days: int = 3650,
+        tz: timezone = UTC,
+    ) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
+        assert (parent_ca is not None) == (parent_ca_key is not None), (
+            "either both parent_ca and parent_ca_key must be set or none of them"
+        )
 
         if os.path.exists(ca_path) and os.path.exists(ca_key_path):
             with open(ca_key_path, "rb") as f:
@@ -242,13 +248,17 @@ class PKIManager:
                 )
             )
 
-        subject = x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, country_name),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, state_or_province_name),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, locality_name),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization_name),
-            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-        ])
+        subject = x509.Name(
+            [
+                x509.NameAttribute(NameOID.COUNTRY_NAME, country_name),
+                x509.NameAttribute(
+                    NameOID.STATE_OR_PROVINCE_NAME, state_or_province_name
+                ),
+                x509.NameAttribute(NameOID.LOCALITY_NAME, locality_name),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization_name),
+                x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+            ]
+        )
 
         if parent_ca is not None:
             issuer = parent_ca.subject
@@ -262,9 +272,7 @@ class PKIManager:
             .public_key(pkey.public_key())
             .serial_number(x509.random_serial_number())
             .not_valid_before(datetime.now(tz))
-            .not_valid_after(
-                datetime.now(tz) + timedelta(days=days)
-            )
+            .not_valid_after(datetime.now(tz) + timedelta(days=days))
             .add_extension(
                 x509.BasicConstraints(ca=True, path_length=None),
                 critical=True,
@@ -292,7 +300,9 @@ class PKIManager:
         if parent_ca_key is not None:
             certificate = certificate.add_extension(
                 x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(
-                    parent_ca.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value,
+                    parent_ca.extensions.get_extension_for_class(
+                        x509.SubjectKeyIdentifier
+                    ).value,
                 ),
                 critical=False,
             )
@@ -302,11 +312,7 @@ class PKIManager:
             algorithm=hashes.SHA256(),
         )
         with open(ca_path, "wb") as f:
-            f.write(
-                certificate.public_bytes(
-                    encoding=serialization.Encoding.PEM
-                )
-            )
+            f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
         return (certificate, pkey)
 
     def gen_kube_etcd_cert(self, server_name: str, hosts: list[str]):
@@ -485,7 +491,8 @@ class PKIManager:
             self.state_or_province_name,
             self.locality_name,
             self.organization_name,
-            "Kubernetes Root CA",)
+            "Kubernetes Root CA",
+        )
 
     def gen_etcd_ca(self):
         root_cert, root_key = self.gen_root_ca()
@@ -499,7 +506,8 @@ class PKIManager:
             self.organization_name,
             parent_ca=root_cert,
             parent_ca_key=root_key,
-            common_name="Kubernetes ETCD CA",)
+            common_name="Kubernetes ETCD CA",
+        )
 
     def gen_front_proxy_ca(self):
         root_cert, root_key = self.gen_root_ca()
@@ -513,7 +521,8 @@ class PKIManager:
             self.organization_name,
             parent_ca=root_cert,
             parent_ca_key=root_key,
-            common_name="Kubernetes front_proxy CA",)
+            common_name="Kubernetes front_proxy CA",
+        )
 
     def gen_kubelet_cert(self, node_name: str):
         root_cert, root_key = self.gen_root_ca()
@@ -548,6 +557,7 @@ class PKIManager:
             ca_key=root_key,
             client=True,
         )
+
     def gen_scheduler_cert(self, node_name: str):
         root_cert, root_key = self.gen_root_ca()
         folder = f"{self.root_folder}/nodes/{node_name}"
@@ -564,6 +574,7 @@ class PKIManager:
             ca_key=root_key,
             client=True,
         )
+
     def gen_user_cert(self, common_name: str, organization_name: str):
         root_cert, root_key = self.gen_root_ca()
         folder = f"{self.root_folder}/users/{common_name}"
@@ -580,7 +591,6 @@ class PKIManager:
             ca_key=root_key,
             client=True,
         )
-
 
     def _generate_key_path(self, path: str) -> str:
         path = path.removesuffix(".crt")
@@ -614,11 +624,13 @@ class PKIManager:
     def front_proxy_ca_key_path(self) -> str:
         return self._generate_key_path(self.front_proxy_ca_path)
 
+
 def init_pki(pki_manager: PKIManager):
     pki_manager.gen_root_ca()
     pki_manager.gen_etcd_ca()
     pki_manager.gen_front_proxy_ca()
     pki_manager.generate_sa_key()
+
 
 def generate_cert(pki_manager: PKIManager, args):
     command = args.generate_command
@@ -646,14 +658,29 @@ def generate_cert(pki_manager: PKIManager, args):
     if command == "user":
         pki_manager.gen_user_cert(args.common_name, args.group)
 
+
 def bootstrap_node(pki_manager: PKIManager, args):
     node_name = args.node_name
     node_ip = args.node_ip
-    pki_manager.gen_kube_etcd_cert(node_name, [node_ip, node_name, "localhost", "127.0.0.1"])
-    pki_manager.gen_kube_etcd_peer_cert(node_name, [node_ip, node_name, "localhost", "127.0.0.1"])
+    pki_manager.gen_kube_etcd_cert(
+        node_name, [node_ip, node_name, "localhost", "127.0.0.1"]
+    )
+    pki_manager.gen_kube_etcd_peer_cert(
+        node_name, [node_ip, node_name, "localhost", "127.0.0.1"]
+    )
     pki_manager.gen_kube_etcd_healthcheck_cert(node_name)
     pki_manager.gen_kube_apiserver_etcd_cert(node_name)
-    pki_manager.gen_kube_apiserver_cert(node_name, [node_ip, node_name, "kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc.cluster.local"])
+    pki_manager.gen_kube_apiserver_cert(
+        node_name,
+        [
+            node_ip,
+            node_name,
+            "kubernetes",
+            "kubernetes.default",
+            "kubernetes.default.svc",
+            "kubernetes.default.svc.cluster.local",
+        ],
+    )
     pki_manager.gen_kube_apiserver_kubelet_cert(node_name)
     pki_manager.gen_front_proxy_client_cert(node_name)
     pki_manager.gen_kube_proxy_cert(node_name)
@@ -662,20 +689,30 @@ def bootstrap_node(pki_manager: PKIManager, args):
     pki_manager.gen_controller_manager_cert(node_name)
     pki_manager.gen_scheduler_cert(node_name)
 
+
 def _configure_cert_subparser(parent_subparsers, name: str) -> ArgumentParser:
     parser = parent_subparsers.add_parser(name, help=f"Generate a {name} certificate.")
-    parser.add_argument("--sans", type=str, nargs="*", help="Subject Alternative Names for the certificate.")
+    parser.add_argument(
+        "--sans",
+        type=str,
+        nargs="*",
+        help="Subject Alternative Names for the certificate.",
+    )
     parser.add_argument("hostname", type=str, help="The hostname for the certificate.")
     return parser
 
+
 def configure_bootstrap_parser(parser: ArgumentParser):
-    parser.add_argument("node_name", type=str, help="The name of the node to bootstrap.")
-    parser.add_argument("node_ip", type=str, help="The IP address of the node to bootstrap.")
+    parser.add_argument(
+        "node_name", type=str, help="The name of the node to bootstrap."
+    )
+    parser.add_argument(
+        "node_ip", type=str, help="The IP address of the node to bootstrap."
+    )
     return parser
 
 
 def configure_cert_parser(parser: ArgumentParser):
-
     subparsers = parser.add_subparsers(dest="generate_command", required=True)
     _configure_cert_subparser(subparsers, "kube-etcd")
     _configure_cert_subparser(subparsers, "kube-etcd-peer")
@@ -686,17 +723,28 @@ def configure_cert_parser(parser: ArgumentParser):
     _configure_cert_subparser(subparsers, "front-proxy-client")
     _configure_cert_subparser(subparsers, "kube-proxy")
     all_parser = _configure_cert_subparser(subparsers, "all")
-    all_parser.add_argument("--no-server", action='store_true', help="Generate server certificates.")
-    all_parser.add_argument("--no-worker", action='store_true', help="Generate worker certificates.")
+    all_parser.add_argument(
+        "--no-server", action="store_true", help="Generate server certificates."
+    )
+    all_parser.add_argument(
+        "--no-worker", action="store_true", help="Generate worker certificates."
+    )
 
     user_parser = subparsers.add_parser("user", help="Generate a user certificate.")
-    user_parser.add_argument("common_name", type=str, help="The common name for the user certificate.")
-    user_parser.add_argument("group", type=str, help="The organization name for the user certificate.")
+    user_parser.add_argument(
+        "common_name", type=str, help="The common name for the user certificate."
+    )
+    user_parser.add_argument(
+        "group", type=str, help="The organization name for the user certificate."
+    )
 
     return parser
 
+
 def main():
-    parser = ArgumentParser(description="A tool to generate certificates for kubernetes.")
+    parser = ArgumentParser(
+        description="A tool to generate certificates for kubernetes."
+    )
     parser.add_argument(
         "--root-folder",
         type=str,
@@ -706,15 +754,19 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser("init", help="Initialize the PKI and generate root certificates.")
+    init_parser = subparsers.add_parser(
+        "init", help="Initialize the PKI and generate root certificates."
+    )
 
-    generate_parser = subparsers.add_parser("generate", help="Generate a certificate signed by a specified CA.")
+    generate_parser = subparsers.add_parser(
+        "generate", help="Generate a certificate signed by a specified CA."
+    )
 
     bootstrap_parser = subparsers.add_parser("bootstrap", help="Bootstrap a node.")
 
     configure_cert_parser(generate_parser)
     configure_bootstrap_parser(bootstrap_parser)
-    
+
     args = parser.parse_args()
 
     pki = PKIManager(args.root_folder)
@@ -725,6 +777,7 @@ def main():
         generate_cert(pki, args)
     elif args.command == "bootstrap":
         bootstrap_node(pki, args)
+
 
 if __name__ == "__main__":
     main()

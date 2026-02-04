@@ -2,7 +2,7 @@ let
   enable = true;
 in
 {
-  deploymentConfig = {};
+  deploymentConfig = { };
   extraConfigs = {
     "cluster-master-1" = {
       midugh.gateway.portForward = [

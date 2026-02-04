@@ -1,5 +1,4 @@
-{ 
-lib
+{ lib
 , config
 , ...
 }:
@@ -11,9 +10,9 @@ in {
       plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc = {
         options.SystemdCgroup = true;
       };
-            plugins."io.containerd.grpc.v1.cri".containerd = {
-                snapshotter = "overlayfs";
-            };
+      plugins."io.containerd.grpc.v1.cri".containerd = {
+        snapshotter = "overlayfs";
+      };
     };
   };
 }

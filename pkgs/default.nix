@@ -1,8 +1,7 @@
-{
-    mkPoetryApplication,
-    ...
+{ mkPoetryApplication
+, ...
 }: {
-    kube-certs = mkPoetryApplication {
-        projectDir = ./certs;
-    };
+  kube-certs = mkPoetryApplication {
+    projectDir = ./certs;
+  };
 }

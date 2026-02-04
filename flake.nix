@@ -14,7 +14,7 @@
 
     poetry2nix.url = "github:nix-community/poetry2nix";
 
-    treefmt-nix.url  = "github:numtide/treefmt-nix";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
 
     colmena.url = "github:zhaofengli/colmena";
 
@@ -45,8 +45,9 @@
             inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryApplication;
           in
           {
-                        inherit (import ./pkgs {
-                            inherit pkgs mkPoetryApplication; }) kube-certs;
+            inherit (import ./pkgs {
+              inherit pkgs mkPoetryApplication;
+            }) kube-certs;
           });
       nixosModules = rec {
         kubernetes = {
@@ -213,7 +214,7 @@
                 };
 
                 imports = conf._module.args.modules ++ [
-                    self.nixosModules.colmena
+                  self.nixosModules.colmena
                 ];
 
               }))
@@ -221,14 +222,16 @@
         );
 
 
-            formatter = flake-utils.lib.eachDefaultSystemMap (system: 
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                    treeFmtEval = (treefmt-nix.lib.evalModule pkgs {
-                        projectRootFile = "flake.nix";
-                        programs.nixpkgs-fmt.enable = true;
-                    });
-                in treeFmtEval.config.build.wrapper
-            );
+      formatter = flake-utils.lib.eachDefaultSystemMap (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          treeFmtEval = (treefmt-nix.lib.evalModule pkgs {
+            projectRootFile = "flake.nix";
+            programs.nixpkgs-fmt.enable = true;
+            programs.ruff-format.enable = true;
+          });
+        in
+        treeFmtEval.config.build.wrapper
+      );
     };
 }
