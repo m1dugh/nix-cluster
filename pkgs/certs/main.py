@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from cryptography import x509

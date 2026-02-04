@@ -23,6 +23,7 @@ with lib;
 
     nfs-utils
     dig
+    cri-tools
   ];
 
   environment.sessionVariables = {

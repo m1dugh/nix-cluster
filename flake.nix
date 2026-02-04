@@ -12,6 +12,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    poetry2nix.url = "github:nix-community/poetry2nix";
+
     treefmt-nix.url  = "github:numtide/treefmt-nix";
 
     colmena.url = "github:zhaofengli/colmena";
@@ -30,6 +32,7 @@
     , nixos-hardware
     , colmena
     , treefmt-nix
+    , poetry2nix
     , ...
     }:
 
@@ -39,10 +42,11 @@
         flake-utils.lib.eachDefaultSystemMap (system:
           let
             pkgs = nixpkgs.legacyPackages.${system};
-            certs = pkgs.callPackage ./certs { };
+            inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryApplication;
           in
           {
-            inherit (certs) gen-certs build-config deploy-certs;
+                        inherit (import ./pkgs {
+                            inherit pkgs mkPoetryApplication; }) kube-certs;
           });
       nixosModules = rec {
         kubernetes = {

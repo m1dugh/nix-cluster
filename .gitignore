@@ -8,3 +8,5 @@
 /admin.kubeconfig
 
 /pki
+
+.venv/
