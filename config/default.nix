@@ -12,6 +12,7 @@ in
   imports = [
     ./secrets.nix
     ./hardware-configuration.nix
+    ./kube-network.nix
   ];
 
   networking.extraHosts =
@@ -33,15 +34,20 @@ in
       initialClusterState = if isInitialNode then "new" else "existing";
   };
   
-  services.kubernetes.apiserver.etcd = 
-  {
-    servers = lib.attrsets.mapAttrsToList (_: cfg: "${etcdScheme}://${cfg.address}:2379") etcdNodes;
-  };
+    services.kubernetes.apiserver = {
+        etcd = 
+            {
+                servers = lib.attrsets.mapAttrsToList (_: cfg: "${etcdScheme}://${cfg.address}:2379") etcdNodes;
+            };
+    };
 
   environment.systemPackages = with pkgs; [
     openssl
     htop
     nload
+    kubectl
+    kubernetes
+    iptables-legacy
 
     traceroute
     tcpdump
@@ -89,7 +95,7 @@ in
     nodeName = nodeConfig.name;
     master.enable = builtins.elem "master" nodeConfig.roles;
     master.schedulable = builtins.elem "worker" nodeConfig.roles;
-    pkiLocalDir = "./pki/";
+    pkiLocalDir = "./pki";
   };
 
   services.kubernetes.masterAddress = cluster-config.kubernetes.masterAddress;

@@ -6,6 +6,7 @@ let cfg = config.midugh.kubernetes;
 in {
   config.services.kubernetes.apiserver = lib.mkIf (cfg.enable && cfg.master.enable) {
     enable = true;
+    allowPrivileged = true;
     etcd.caFile = "${cfg.pkiRootDir}/etcd/ca.crt";
     etcd.keyFile = "${cfg.pkiRootDir}/apiserver-etcd-client.key";
     etcd.certFile = "${cfg.pkiRootDir}/apiserver-etcd-client.crt";

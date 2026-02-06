@@ -53,6 +53,8 @@ in
 
   config = lib.mkIf cfg.enable {
 
+    environment.etc."cni/net.d".enable = false;
+
     services.kubernetes = {
       easyCerts = false;
 

@@ -475,7 +475,7 @@ class PKIManager:
             self.state_or_province_name,
             self.locality_name,
             None,
-            common_name="kube-proxy",
+            common_name="system:kube-proxy",
             ca=ca,
             ca_key=ca_key,
             server=False,
@@ -524,7 +524,7 @@ class PKIManager:
             common_name="Kubernetes front_proxy CA",
         )
 
-    def gen_kubelet_cert(self, node_name: str):
+    def gen_kubelet_cert(self, node_name: str, sans: list[str]):
         root_cert, root_key = self.gen_root_ca()
         folder = f"{self.root_folder}/nodes/{node_name}"
         self._gen_cert(
@@ -539,6 +539,7 @@ class PKIManager:
             ca=root_cert,
             ca_key=root_key,
             client=True,
+            sans=sans,
         )
 
     def gen_controller_manager_cert(self, node_name: str):
@@ -675,6 +676,7 @@ def bootstrap_node(pki_manager: PKIManager, args):
         [
             node_ip,
             node_name,
+            "10.0.0.1", # TODO: add proper parameter for 'advertise IP'
             "kubernetes",
             "kubernetes.default",
             "kubernetes.default.svc",
@@ -685,7 +687,10 @@ def bootstrap_node(pki_manager: PKIManager, args):
     pki_manager.gen_front_proxy_client_cert(node_name)
     pki_manager.gen_kube_proxy_cert(node_name)
 
-    pki_manager.gen_kubelet_cert(node_name)
+    pki_manager.gen_kubelet_cert(node_name, [
+        node_ip,
+        node_name,
+    ])
     pki_manager.gen_controller_manager_cert(node_name)
     pki_manager.gen_scheduler_cert(node_name)
 

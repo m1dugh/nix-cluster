@@ -8,6 +8,9 @@ in {
         networking.firewall.allowedTCPPorts = [ config.services.kubernetes.kubelet.port ];
         services.kubernetes.kubelet = {
             unschedulable = false;
+            tlsCertFile = "${cfg.pkiRootDir}/kubelet.crt";
+            tlsKeyFile = "${cfg.pkiRootDir}/kubelet.key";
+            clientCaFile = "${cfg.pkiRootDir}/ca.crt";
             taints.master-taint = lib.mkIf (!cfg.master.schedulable) {
                 key = "node-role.kubernetes.io/control-plane";
                 value = "";
