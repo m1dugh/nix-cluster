@@ -5,6 +5,8 @@
   networking.firewall.interfaces.eth0.allowedTCPPorts = [
         # 5473 # calico typha ports
         7946 # metallb
+        30272 # internal http
+        31561 # internal https
     ];
 
   networking.firewall.interfaces.eth0.allowedUDPPorts = [

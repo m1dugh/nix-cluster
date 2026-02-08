@@ -21,6 +21,11 @@ in {
     ./secrets.nix
   ];
 
+    networking.firewall.allowedTCPPorts = [
+        80
+        443
+    ];
+
   midugh.gateway = {
     enable = true;
     internalInterface = "wg0";
@@ -47,17 +52,10 @@ in {
     '';
   };
 
-  networking.firewall.interfaces.eth0.allowedTCPPorts = [
-        gatewayPorts.internal.http
-        gatewayPorts.internal.https
-        gatewayPorts.external.http
-        gatewayPorts.external.https
-    ];
-
   networking.firewall.filterForward = true;
   networking.firewall.extraForwardRules = ''
     iifname wg0 ip daddr {192.168.1.145,192.168.1.146,192.168.1.147,192.168.1.148} log prefix "accepted traffic to cluster node: " level notice accept comment "accept cluster nodes"
-    ip daddr {192.168.1.155-192.168.1.160} log prefix "accepted traffic to load balancers: " level notice accept comment "accept cluster load balancers";
+    ip daddr {192.168.1.155-192.168.1.162} log prefix "accepted traffic to load balancers: " level notice accept comment "accept cluster load balancers";
     iifname wg0 ip daddr 192.168.1.0/24 log prefix "traffic dropped to non cluster node: " level info drop comment "drop non cluster nodes"
   '';
 
@@ -67,8 +65,8 @@ in {
         frontend internalHTTP
             mode tcp
             bind 192.168.1.161:80
-            default_backend internalHTTP
-        backend internalHTTP
+            default_backend back_internalHTTP
+        backend back_internalHTTP
             mode tcp
             balance roundrobin
             server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.http} check
@@ -79,8 +77,8 @@ in {
         frontend internalHTTPs
             mode tcp
             bind 192.168.1.161:443
-            default_backend internalHTTPs
-        backend internalHTTPs
+            default_backend back_internalHTTPs
+        backend back_internalHTTPs
             mode tcp
             balance roundrobin
             server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.https} check
@@ -91,8 +89,8 @@ in {
         frontend externalHTTP
             mode tcp
             bind 192.168.1.162:80
-            default_backend externalHTTP
-        backend externalHTTPs
+            default_backend back_externalHTTP
+        backend back_externalHTTP
             mode tcp
             balance roundrobin
             server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.http} check
@@ -103,8 +101,8 @@ in {
         frontend externalHTTPs
             mode tcp
             bind 192.168.1.162:443
-            default_backend externalHTTPs
-        backend externalHTTPs
+            default_backend back_externalHTTPs
+        backend back_externalHTTPs
             mode tcp
             balance roundrobin
             server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.https} check
