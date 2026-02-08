@@ -33,7 +33,7 @@
     , colmena
     , treefmt-nix
     , ...
-    }:
+    }@inputs:
 
     let
       inherit (nixpkgs) lib;
@@ -88,7 +88,7 @@
         in lib.attrsets.mapAttrs (name: cfg: lib.nixosSystem {
             inherit pkgs system;
             specialArgs = {
-              inherit cluster-config;
+              inherit cluster-config inputs;
               nodeConfig = cfg // {
                   inherit name;
               };

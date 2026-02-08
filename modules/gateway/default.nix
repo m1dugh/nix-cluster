@@ -126,7 +126,7 @@ in
 
           chain post {
               type nat hook postrouting priority srcnat; policy accept;
-              oifname "${cfg.externalInterface}" masquerade comment "from internal interfaces"
+              iifname "${cfg.internalInterface}" masquerade comment "masquerade from wg interface";
           }
 
           chain out {

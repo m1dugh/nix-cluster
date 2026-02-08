@@ -2,6 +2,7 @@
 , cluster-config
 , pkgs
 , lib
+, inputs
 , ...
 }:
 let
@@ -14,6 +15,11 @@ in
     ./hardware-configuration.nix
     ./kube-network.nix
   ];
+
+    nix = {
+        nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
+        settings.experimental-features = [ "nix-command" "flakes" ];
+    };
 
   networking.extraHosts =
     let entries = lib.attrsets.mapAttrsToList (name: cfg:  "${cfg.address}\t${name}") cluster-config.nodes;

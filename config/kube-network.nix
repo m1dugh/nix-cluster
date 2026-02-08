@@ -4,10 +4,12 @@
   
   networking.firewall.interfaces.eth0.allowedTCPPorts = [
         # 5473 # calico typha ports
+        7946 # metallb
     ];
 
   networking.firewall.interfaces.eth0.allowedUDPPorts = [
     8472 # flannel vxlan backend
+        7946 # metallb
   ];
   boot.kernelModules = [
     "nf_conntrack"
