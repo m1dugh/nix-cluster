@@ -676,7 +676,7 @@ def bootstrap_node(pki_manager: PKIManager, args):
         [
             node_ip,
             node_name,
-            "10.0.0.1", # TODO: add proper parameter for 'advertise IP'
+            "10.0.0.1",  # TODO: add proper parameter for 'advertise IP'
             "kubernetes",
             "kubernetes.default",
             "kubernetes.default.svc",
@@ -687,10 +687,13 @@ def bootstrap_node(pki_manager: PKIManager, args):
     pki_manager.gen_front_proxy_client_cert(node_name)
     pki_manager.gen_kube_proxy_cert(node_name)
 
-    pki_manager.gen_kubelet_cert(node_name, [
-        node_ip,
+    pki_manager.gen_kubelet_cert(
         node_name,
-    ])
+        [
+            node_ip,
+            node_name,
+        ],
+    )
     pki_manager.gen_controller_manager_cert(node_name)
     pki_manager.gen_scheduler_cert(node_name)
 

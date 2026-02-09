@@ -40,9 +40,10 @@
       cluster-config = import ./cluster-config.nix {
         inherit lib;
       };
-    in {
+    in
+    {
       packages =
-        flake-utils.lib.eachDefaultSystemMap (system: {});
+        flake-utils.lib.eachDefaultSystemMap (system: { });
 
       nixosModules = rec {
         kubernetes = {
@@ -85,27 +86,30 @@
               });
             });
           };
-        in lib.attrsets.mapAttrs (name: cfg: lib.nixosSystem {
+        in
+        lib.attrsets.mapAttrs
+          (name: cfg: lib.nixosSystem {
             inherit pkgs system;
             specialArgs = {
               inherit cluster-config inputs;
               nodeConfig = cfg // {
-                  inherit name;
+                inherit name;
               };
             };
             modules = [
-                sops-nix.nixosModules.sops
-                nixos-hardware.nixosModules.raspberry-pi-4
-                "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+              sops-nix.nixosModules.sops
+              nixos-hardware.nixosModules.raspberry-pi-4
+              "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
             ]
-              ++
+            ++
             (with self.outputs.nixosModules; [
               raspi
               basic
             ]) ++ lib.lists.optionals (name == cluster-config.gateway.node) [
-                ./config/master
+              ./config/master
             ];
-        }) cluster-config.nodes;
+          })
+          cluster-config.nodes;
       devShells = flake-utils.lib.eachDefaultSystemMap (system:
         let
           pkgs = import nixpkgs {
@@ -122,7 +126,8 @@
 
 
       colmenaHive = colmena.lib.makeHive (
-        let configs = self.nixosConfigurations;
+        let
+          configs = self.nixosConfigurations;
           system = "aarch64-linux";
           pkgs = import nixpkgs {
             inherit system;
@@ -134,22 +139,24 @@
             });
           };
         in
-          ({
-            meta = {
-              nixpkgs = pkgs;
-              specialArgs = {
-                colmena = true;
-              };
-              nodeSpecialArgs = builtins.mapAttrs (_: node: node._module.specialArgs) configs;
+        ({
+          meta = {
+            nixpkgs = pkgs;
+            specialArgs = {
+              colmena = true;
             };
-          } // (lib.attrsets.mapAttrs (name: cfg: 
-              let config = cluster-config.nodes."${name}";
+            nodeSpecialArgs = builtins.mapAttrs (_: node: node._module.specialArgs) configs;
+          };
+        } // (lib.attrsets.mapAttrs
+          (name: cfg:
+            let config = cluster-config.nodes."${name}";
             in {
               deployment.targetHost = config.address;
               imports = configs."${name}"._module.args.modules ++ [
                 self.nixosModules.colmena
               ];
-          }) cluster-config.nodes ))
+            })
+          cluster-config.nodes))
       );
 
       formatter = flake-utils.lib.eachDefaultSystemMap (system:

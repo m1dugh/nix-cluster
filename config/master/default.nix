@@ -4,27 +4,29 @@
 , ...
 }:
 with lib;
-let secrets = config.sops.secrets;
+let
+  secrets = config.sops.secrets;
 
-    gatewayPorts = {
-        internal = {
-            http = 30272;
-            https = 31561;
-        };
-        external = {
-            http = 30272;
-            https = 31561;
-        };
+  gatewayPorts = {
+    internal = {
+      http = 30272;
+      https = 31561;
     };
-in {
+    external = {
+      http = 30080;
+      https = 30443;
+    };
+  };
+in
+{
   imports = [
     ./secrets.nix
   ];
 
-    networking.firewall.allowedTCPPorts = [
-        80
-        443
-    ];
+  networking.firewall.allowedTCPPorts = [
+    80
+    443
+  ];
 
   midugh.gateway = {
     enable = true;
@@ -59,66 +61,66 @@ in {
     iifname wg0 ip daddr 192.168.1.0/24 log prefix "traffic dropped to non cluster node: " level info drop comment "drop non cluster nodes"
   '';
 
-    services.haproxy = {
-        enable = true;
-        config = ''
-        frontend internalHTTP
-            mode tcp
-            bind 192.168.1.161:80
-            default_backend back_internalHTTP
-        backend back_internalHTTP
-            mode tcp
-            balance roundrobin
-            server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.http} check
-            server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.http} check
-            server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.http} check
-            server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.http} check
+  services.haproxy = {
+    enable = true;
+    config = ''
+      frontend internalHTTP
+          mode tcp
+          bind 192.168.1.161:80
+          default_backend back_internalHTTP
+      backend back_internalHTTP
+          mode tcp
+          balance roundrobin
+          server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.http} check
+          server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.http} check
+          server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.http} check
+          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.http} check
 
-        frontend internalHTTPs
-            mode tcp
-            bind 192.168.1.161:443
-            default_backend back_internalHTTPs
-        backend back_internalHTTPs
-            mode tcp
-            balance roundrobin
-            server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.https} check
-            server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.https} check
-            server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.https} check
-            server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.https} check
+      frontend internalHTTPs
+          mode tcp
+          bind 192.168.1.161:443
+          default_backend back_internalHTTPs
+      backend back_internalHTTPs
+          mode tcp
+          balance roundrobin
+          server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.https} check
+          server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.https} check
+          server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.https} check
+          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.https} check
 
-        frontend externalHTTP
-            mode tcp
-            bind 192.168.1.162:80
-            default_backend back_externalHTTP
-        backend back_externalHTTP
-            mode tcp
-            balance roundrobin
-            server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.http} check
-            server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.http} check
-            server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.http} check
-            server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.http} check
+      frontend externalHTTP
+          mode tcp
+          bind 192.168.1.162:80
+          default_backend back_externalHTTP
+      backend back_externalHTTP
+          mode tcp
+          balance roundrobin
+          server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.http} check
+          server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.http} check
+          server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.http} check
+          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.http} check
 
-        frontend externalHTTPs
-            mode tcp
-            bind 192.168.1.162:443
-            default_backend back_externalHTTPs
-        backend back_externalHTTPs
-            mode tcp
-            balance roundrobin
-            server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.https} check
-            server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.https} check
-            server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.https} check
-            server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.https} check
-        '';
-    };
+      frontend externalHTTPs
+          mode tcp
+          bind 192.168.1.162:443
+          default_backend back_externalHTTPs
+      backend back_externalHTTPs
+          mode tcp
+          balance roundrobin
+          server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.https} check
+          server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.https} check
+          server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.https} check
+          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.https} check
+    '';
+  };
 
-    networking.interfaces.eth0.ipv4.addresses = [{
-        address = "192.168.1.161";
-        prefixLength = 32;
-    }
+  networking.interfaces.eth0.ipv4.addresses = [{
+    address = "192.168.1.161";
+    prefixLength = 32;
+  }
     {
-        address = "192.168.1.162";
-        prefixLength = 32;
+      address = "192.168.1.162";
+      prefixLength = 32;
     }];
 
   networking.wireguard.interfaces."wg0" = {

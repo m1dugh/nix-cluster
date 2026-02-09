@@ -16,20 +16,21 @@ in
     ./kube-network.nix
   ];
 
-    nix = {
-        nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
-        settings.experimental-features = [ "nix-command" "flakes" ];
-    };
+  nix = {
+    nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
+    settings.experimental-features = [ "nix-command" "flakes" ];
+  };
 
   networking.extraHosts =
-    let entries = lib.attrsets.mapAttrsToList (name: cfg:  "${cfg.address}\t${name}") cluster-config.nodes;
+    let entries = lib.attrsets.mapAttrsToList (name: cfg: "${cfg.address}\t${name}") cluster-config.nodes;
     in lib.strings.concatLines entries;
 
-  services.etcd = 
+  services.etcd =
     let
       isInitialNode = builtins.elem nodeConfig.name cluster-config.etcd.initialNodes;
       initialEtcdNodes = lib.attrsets.filterAttrs (name: _: builtins.elem name cluster-config.etcd.initialNodes) etcdNodes;
-    in {
+    in
+    {
       name = nodeConfig.name;
       initialAdvertisePeerUrls = [ "${etcdScheme}://${nodeConfig.address}:2380" ];
       listenPeerUrls = [ "${etcdScheme}://${nodeConfig.address}:2380" ];
@@ -38,14 +39,14 @@ in
       initialCluster = (lib.attrsets.mapAttrsToList (name: cfg: "${name}=${etcdScheme}://${cfg.address}:2380") initialEtcdNodes) ++ (lib.lists.optional (!isInitialNode) "${nodeConfig.name}=${etcdScheme}://${nodeConfig.address}:2380");
 
       initialClusterState = if isInitialNode then "new" else "existing";
-  };
-  
-    services.kubernetes.apiserver = {
-        etcd = 
-            {
-                servers = lib.attrsets.mapAttrsToList (_: cfg: "${etcdScheme}://${cfg.address}:2379") etcdNodes;
-            };
     };
+
+  services.kubernetes.apiserver = {
+    etcd =
+      {
+        servers = lib.attrsets.mapAttrsToList (_: cfg: "${etcdScheme}://${cfg.address}:2379") etcdNodes;
+      };
+  };
 
   environment.systemPackages = with pkgs; [
     openssl
