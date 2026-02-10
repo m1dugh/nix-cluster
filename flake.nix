@@ -105,8 +105,10 @@
             (with self.outputs.nixosModules; [
               raspi
               basic
-            ]) ++ lib.lists.optionals (name == cluster-config.gateway.node) [
+            ]) ++ (lib.lists.optionals (name == cluster-config.gateway.node) [
               ./config/master
+            ]) ++ lib.lists.optionals (name == "cluster-master-2") [
+              ./config/nfs.nix
             ];
           })
           cluster-config.nodes;
