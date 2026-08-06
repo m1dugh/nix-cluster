@@ -61,67 +61,49 @@ in
     iifname wg0 ip daddr 192.168.1.0/24 log prefix "traffic dropped to non cluster node: " level info drop comment "drop non cluster nodes"
   '';
 
-  services.haproxy = {
+  midugh.load-balancer = {
     enable = true;
-    config = ''
-      frontend internalHTTP
-          mode tcp
-          bind 192.168.1.161:80
-          default_backend back_internalHTTP
-      backend back_internalHTTP
-          mode tcp
-          balance roundrobin
-          server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.http} check
-          server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.http} check
-          server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.http} check
-          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.http} check
-
-      frontend internalHTTPs
-          mode tcp
-          bind 192.168.1.161:443
-          default_backend back_internalHTTPs
-      backend back_internalHTTPs
-          mode tcp
-          balance roundrobin
-          server cluster-master-1 192.168.1.145:${toString gatewayPorts.internal.https} check
-          server cluster-master-2 192.168.1.146:${toString gatewayPorts.internal.https} check
-          server cluster-master-3 192.168.1.147:${toString gatewayPorts.internal.https} check
-          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.internal.https} check
-
-      frontend externalHTTP
-          mode tcp
-          bind 192.168.1.162:80
-          default_backend back_externalHTTP
-      backend back_externalHTTP
-          mode tcp
-          balance roundrobin
-          server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.http} check
-          server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.http} check
-          server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.http} check
-          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.http} check
-
-      frontend externalHTTPs
-          mode tcp
-          bind 192.168.1.162:443
-          default_backend back_externalHTTPs
-      backend back_externalHTTPs
-          mode tcp
-          balance roundrobin
-          server cluster-master-1 192.168.1.145:${toString gatewayPorts.external.https} check
-          server cluster-master-2 192.168.1.146:${toString gatewayPorts.external.https} check
-          server cluster-master-3 192.168.1.147:${toString gatewayPorts.external.https} check
-          server cluster-worker-1 192.168.1.148:${toString gatewayPorts.external.https} check
-    '';
-  };
-
-  networking.interfaces.eth0.ipv4.addresses = [{
-    address = "192.168.1.161";
-    prefixLength = 32;
-  }
-    {
+    addresses.internal = {
+      interface = "eth0";
+      address = "192.168.1.161";
+      targets = [
+        "192.168.1.145"
+        "192.168.1.146"
+        "192.168.1.147"
+        "192.168.1.148"
+      ];
+      ports.https = {
+        port = 443;
+        targetPort = 31561;
+        type = "tcp";
+      };
+      ports.http = {
+        port = 80;
+        targetPort = 30272;
+        type = "tcp";
+      };
+    };
+    addresses.external = {
+      interface = "eth0";
       address = "192.168.1.162";
-      prefixLength = 32;
-    }];
+      targets = [
+        "192.168.1.145"
+        "192.168.1.146"
+        "192.168.1.147"
+        "192.168.1.148"
+      ];
+      ports.https = {
+        port = 443;
+        targetPort = 30443;
+        type = "tcp";
+      };
+      ports.http = {
+        port = 80;
+        targetPort = 30080;
+        type = "tcp";
+      };
+    };
+  };
 
   networking.wireguard.interfaces."wg0" = {
     privateKeyFile = secrets."gateway/wg0.key".path;

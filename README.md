@@ -1,70 +1,54 @@
 # NixOS k8s cluster
 
-## Introduction
+This project is an kubernetes high-availability cluster powering my infrastructure.
 
-This project has been described in a medium article that can be found
-[here](https://midugh.medium.com/build-your-kubernetes-cluster-with-raspberry-pis-using-nixos-745ed11e5b70).
-It gives more explanation about the whole construction of the project.
+## Network
 
-## Building the project
+### Nodes
 
-### Building the SD image
+- 192.168.1.145 : control-plane, gateway to external traffic
+- 192.168.1.146 : control-plane, worker
+- 192.168.1.147 : control-plane, worker
+- 192.168.1.148 : worker
 
-To build an sd image, run the following command.
+### Extra addresses
 
-```shell
-$ ./runner-wrapper.sh nix build .#nixosConfigurations.<host>.config.system.build.sdImage
+- 192.168.1.161 : internal traffic (only reachable through vpn)
+- 192.168.1.162 : external traffic (reachable through gateway)
+
+## Deploying
+
+### Secret Generation
+
+To properly work, the following secrets are required :
+
+- ./secrets/servers.key : The rsa private key used to decrypt all the secrets
+- ./secrets/secrets.yaml : the encoded secrets
+- ./secrets/certs.json : The encoded certificates for kubernetes to run
+
+The certs secrets can be generated using ./pkgs/certs/
+
+
+### Building the sd card
+
+The initial deployment is meant to be with a preflashed sdCard.
+
+```bash
+nix build .\#nixosConfigurations.<image>.config.system.build.sdImage
 ```
 
-Where `<host>` is the name of the nixosConfiguration.
+Which will build a zstd compressed image flashable on an sdCard
 
-### Deploying to target
+### Deploying keys via colmena
 
-This project uses [colmena](https://github.com/zhaofengli/colmena) for deployment.
-In order for all the certificates to be pushed to the remote hosts, one needs
-to use colmena to deploy the keys.
+To deploy the keys via colmena, use the following commands :
 
-1. Generate the keys
-```shell
-$ nix run .\#gen-certs
+```bash
+colmena upload-keys
 ```
 
-2. Upload the keys
-```shell
-$ ./runner-wrapper.sh colmena upload-keys
+### Redeploying derivations via colmena
+
+```bash
+colmena apply --no-keys
 ```
-
-Once the keys has been deployed, the proper deployment can begin.
-
-```shell
-$ colmena apply --no-keys
-```
-
-*Note: when applying, we are not deploying the keys once again are they
-are meant to be kept the same amongst multiple deployments.*
-
-## Components
-
-### Flannel
-
-Flannel is the cni used on each machine, including non-worker nodes.
-
-## Modules
-
-### Gateway
-
-The gateway module is a wireguard server that serves as
-entrypoint for the cluster.
-
-The subnet for the vpn is `10.200.0.0/24`.
-The IP Addresses for the nodes are
-`10.200.0.1-10.200.0.99`, and the remaining range
-is for other clients.
-
-## Deploying secrets
-
-To deploy secrets, you need to upload an ssh key that has been used to encrypt
-the secrets onto the node.
-
-Push key `secrets/servers.key` to `/var/lib/nixos/servers.key` on the remote
-node to allow it.

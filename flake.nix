@@ -51,6 +51,11 @@
             ./modules/kubernetes
           ];
         };
+        load-balancer = {
+          imports = [
+            ./modules/load-balancer
+          ];
+        };
         gateway = {
           imports = [
             ./modules/gateway
@@ -67,6 +72,7 @@
           imports = [
             kubernetes
             gateway
+            load-balancer
             ./config
           ];
         };
