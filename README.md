@@ -1,54 +1,51 @@
-# NixOS k8s cluster
+# Nix cluster
 
-This project is an kubernetes high-availability cluster powering my infrastructure.
+This project runs a full infrastructure under kubernetes as home lab.
 
-## Network
+## Infrastructure
 
-### Nodes
+### Network
 
-- 192.168.1.145 : control-plane, gateway to external traffic
-- 192.168.1.146 : control-plane, worker
-- 192.168.1.147 : control-plane, worker
-- 192.168.1.148 : worker
+There are 2 subnets : 
 
-### Extra addresses
+| range | vlan | description |
+| ----- | ---- | ----------- |
+| 192.168.1.0/24 | 1 | The home vlan, it should be considered as WAN |
+| 192.168.2.0/24 | 10 | The actual infra vlan |
 
-- 192.168.1.161 : internal traffic (only reachable through vpn)
-- 192.168.1.162 : external traffic (reachable through gateway)
+### Hosts
 
-## Deploying
+The infrastructure is composed of 4 hosts :
 
-### Secret Generation
+| vlan:ips | name | role | server type |
+| -------- | ---- | ---- | ----------- |
+| 1:192.168.1.145,10:192.168.2.1 | cluster-router | In charge of routing and security between infra and wan | raspi4 4G |
+| 2:192.168.2.11 | cluster-master-1 | The master of the kubernetes cluster | raspi4 8G |
+| 2:192.168.2.21 | cluster-worker-1 | The first worker of the kubernetes cluster | raspi4 8G |
+| 2:192.168.2.22 | cluster-worker-2 | The second worker of the kubernetes cluster | raspi4 8G |
 
-To properly work, the following secrets are required :
+### Technical stack
 
-- ./secrets/servers.key : The rsa private key used to decrypt all the secrets
-- ./secrets/secrets.yaml : the encoded secrets
-- ./secrets/certs.json : The encoded certificates for kubernetes to run
+#### cluster-router
 
-The certs secrets can be generated using ./pkgs/certs/
+`cluster-router` is the router in this infra.
 
+This router is fully configured via nixos and colmena.
 
-### Building the sd card
+it will hold the following service :
 
-The initial deployment is meant to be with a preflashed sdCard.
+- dhcp server for the infra lan
+- netboot server for the infra lan
+- routing via vlan tagged interface
+- firewall via nftables
+- loadbalancer via haproxy
+- wireguard on the wan.
 
-```bash
-nix build .\#nixosConfigurations.<image>.config.system.build.sdImage
-```
+All of these services are under the `nix/services` folder
 
-Which will build a zstd compressed image flashable on an sdCard
+#### cluster master/workers
 
-### Deploying keys via colmena
+All the kubernetes nodes are running kubernetes using talos kubernetes
+distribution. The images are stored on `cluster-router` and served via netboot.
 
-To deploy the keys via colmena, use the following commands :
-
-```bash
-colmena upload-keys
-```
-
-### Redeploying derivations via colmena
-
-```bash
-colmena apply --no-keys
-```
+The actual cluster setup is manual through talosctl.
