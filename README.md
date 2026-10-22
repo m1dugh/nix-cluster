@@ -49,3 +49,39 @@ All the kubernetes nodes are running kubernetes using talos kubernetes
 distribution. The images are stored on `cluster-router` and served via netboot.
 
 The actual cluster setup is manual through talosctl.
+
+### Deploying cluster-router
+
+`cluster-router`'s NixOS configuration is defined once, in
+`nix/hosts/cluster-router`, and shared by both deployment flows below
+(`nixosConfigurations.cluster-router` and `colmenaHive.cluster-router` both
+import the same module list, so they never drift apart).
+
+There are 2 ways to deploy it:
+
+#### 1. Bootstrap (first install, via SD image)
+
+Used the first time the raspi4 is provisioned, when there is no NixOS
+already running on it to deploy to over SSH.
+
+```sh
+nix build .#packages.aarch64-linux.cluster-router-sd-image
+```
+
+Flash the resulting `.img.zst` to the router's SD card (e.g. with `dd` or
+`raspi-imager`), insert it into the raspi4, and boot it. Once it is up and
+reachable on the network, switch to the colmena flow below for all further
+changes.
+
+#### 2. Colmena (ongoing deployment)
+
+Used for every deployment once `cluster-router` is already running NixOS
+and reachable over SSH.
+
+```sh
+colmena apply --on cluster-router
+```
+
+This builds the `nixosConfigurations.cluster-router`-equivalent closure
+(via `colmenaHive`) and activates it on the live host over SSH, using the
+`deployment.targetHost` / `deployment.targetUser` set in the flake.
