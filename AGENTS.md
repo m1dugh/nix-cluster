@@ -127,6 +127,34 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   upstream API gateway/ingress in front of it, not by argocd-server
   directly. Revisit this once that gateway exists and is actually fronting
   argocd-server.
+- `infrastructure/argocd/values.yaml` also sets `global.networkPolicy.create:
+  false` — the upstream `argo-cd` chart creates a default-deny
+  `NetworkPolicy` per component otherwise (every component's own
+  `networkPolicy.create` defaults to this global flag), which was blocking
+  `kubectl port-forward` access to `argocd-server`. Revisit once real
+  ingress/gateway access patterns are defined and explicit allow rules can
+  be scoped instead of disabling the policies outright.
+- **ArgoCD's own initial bootstrap install must be done with `helm
+  install`/`helm template`, not a raw manifest install (e.g. the upstream
+  `install.yaml`).** This repo's first manual bootstrap used a raw
+  manifest install, and that caused a real outage once the self-managed
+  `infrastructure/argocd` Application (Helm-chart-sourced) took over:
+  the chart-rendered Services select on
+  `app.kubernetes.io/instance: argocd` and use named `targetPort`s (e.g.
+  `repo-server` on `argocd-repo-server`), but the raw-manifest
+  Deployments/StatefulSet predating Helm had neither the `instance` label
+  nor named container ports — so every Service had zero matching
+  endpoints the moment Helm's Services replaced the manifest-install
+  ones, and `argocd-server`/`argocd-application-controller` couldn't
+  reach `argocd-repo-server` at all (`ComparisonError: ... connection
+  refused`), which in turn blocked ArgoCD from rendering its own Helm
+  chart to self-heal — a bootstrap deadlock that required manually
+  patching every affected Deployment/StatefulSet's pod template (adding
+  the `instance` label and named ports) before ArgoCD could sync itself
+  back to a consistent state. Bootstrapping via Helm with the same
+  `values.yaml` from the start avoids this entirely, since the initial
+  objects would already carry the labels/port names the chart's own
+  Service selectors expect.
 
 ## Progress
 

@@ -43,6 +43,7 @@
             talosctl
             kubectl
             wireguard-tools
+            argocd
           ];
         };
 
