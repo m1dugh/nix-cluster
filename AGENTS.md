@@ -126,9 +126,25 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     `main` — this repo's default branch is `main` (`master` is only the
     old name, still lingering as `origin`'s stale remote-tracking `HEAD`
     locally; not the branch to target).
+  - **Prefer an OCI Helm registry over a classic index-based repo
+    whenever the chart publishes to both** (check with
+    `helm show chart oci://<registry>/<path>/<chart> --version <v>` before
+    assuming only one exists). For the Helm-chart source entry's
+    `repoURL`/`chart` pair when using OCI: `repoURL` is the OCI path
+    **without** the `oci://` scheme prefix and **without** the chart name
+    itself (ArgoCD appends `chart` onto `repoURL` as the final path
+    segment) — e.g. `repoURL: ghcr.io/nginx/charts` +
+    `chart: nginx-gateway-fabric`, not `repoURL:
+    oci://ghcr.io/nginx/charts` (the `oci://` prefix breaks ArgoCD's
+    revision resolution, producing a 403 against the wrong path) and not
+    `repoURL: ghcr.io/nginx/charts/nginx-gateway-fabric` (double-appends
+    the chart name). This bit both `infrastructure/argocd/` (switched
+    from the classic `https://argoproj.github.io/argo-helm` repo to
+    `ghcr.io/argoproj/argo-helm` OCI) and
+    `infrastructure/nginx-gateway-fabric/` when first written.
 - `infrastructure/argocd/` is ArgoCD managing itself: `application.yaml`
-  points at the upstream `argo-cd` Helm chart (repo
-  `https://argoproj.github.io/argo-helm`) with `values.yaml` as the
+  points at the upstream `argo-cd` Helm chart (OCI repo
+  `ghcr.io/argoproj/argo-helm`) with `values.yaml` as the
   override, `targetRevision: 10.11.1` (pinned to the chart version
   actually deployed — bump deliberately, not via a wildcard, so ArgoCD
   never silently jumps chart versions on an unrelated sync), synced into
@@ -176,7 +192,7 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   Service selectors expect.
 - `infrastructure/nginx-gateway-fabric/` deploys NGINX Gateway Fabric
   (Kubernetes Gateway API implementation) via its upstream OCI Helm chart
-  (`oci://ghcr.io/nginx/charts`, chart `nginx-gateway-fabric`, pinned
+  (`ghcr.io/nginx/charts`, chart `nginx-gateway-fabric`, pinned
   `targetRevision`), into the `gateway-system` namespace. Like
   `infrastructure/argocd/`, `application.yaml` uses `spec.sources` with a
   `ref: values` git source so `helm.valueFiles` can point at

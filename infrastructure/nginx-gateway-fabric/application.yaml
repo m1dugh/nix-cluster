@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: oci://ghcr.io/nginx/charts
+    - repoURL: ghcr.io/nginx/charts
       chart: nginx-gateway-fabric
       targetRevision: 2.8.0
       helm:
