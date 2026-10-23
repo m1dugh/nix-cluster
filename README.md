@@ -12,6 +12,19 @@ There are 2 subnets :
 | ----- | ---- | ----------- |
 | 192.168.1.0/24 | 1 | The home vlan, it should be considered as WAN |
 | 192.168.2.0/24 | 10 | The actual infra vlan |
+| 192.168.3.0/24 | - | The wireguard VPN subnet, gateway (cluster-router) at 192.168.3.1 |
+
+### Published ports
+
+Services exposed on `cluster-router`'s WAN-facing address (`192.168.1.145`,
+`vlan-wan`), i.e. VPN access and anything port-forwarded from the cluster
+out to the home/WAN side. This table must be updated whenever a service is
+published on `cluster-router`.
+
+| address | port | service |
+| ------- | ---- | ------- |
+| 192.168.1.145 | 22/tcp | SSH |
+| 192.168.1.145 | 51820/udp | WireGuard VPN |
 
 ### Hosts
 
@@ -19,7 +32,7 @@ The infrastructure is composed of 4 hosts :
 
 | vlan:ips | name | role | server type |
 | -------- | ---- | ---- | ----------- |
-| 1:192.168.1.145,10:192.168.2.1 | cluster-router | In charge of routing and security between infra and wan | raspi4 4G |
+| 1:192.168.1.145,10:192.168.2.1,wg0:192.168.3.1 | cluster-router | In charge of routing and security between infra and wan | raspi4 4G |
 | 2:192.168.2.11 | cluster-master-1 | The master of the kubernetes cluster | raspi4 8G |
 | 2:192.168.2.21 | cluster-worker-1 | The first worker of the kubernetes cluster | raspi4 8G |
 | 2:192.168.2.22 | cluster-worker-2 | The second worker of the kubernetes cluster | raspi4 8G |

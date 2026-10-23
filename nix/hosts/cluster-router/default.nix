@@ -98,6 +98,12 @@ in
       configFile = "/etc/wireguard/wg0.conf";
     };
 
+    # NixOS's own firewall module (inet nixos-fw) is disabled: it would run
+    # alongside our custom ruleset below as a second, independent drop-by-
+    # default gate at the same hook — a packet must pass both to be let
+    # through, and nixos-fw knows nothing about e.g. our WireGuard port.
+    firewall.enable = false;
+
     nftables = {
       enable = true;
 
@@ -115,6 +121,7 @@ in
             iifname "vlan-wan" icmpv6 type echo-request accept
             iifname "vlan-wan" tcp dport 22 accept
             iifname "vlan-wan" udp dport 51820 accept
+            iifname "wg0" accept
           }
 
           chain forward {
@@ -122,6 +129,14 @@ in
 
             ct state established,related accept
             iifname "vlan-infra" oifname "vlan-wan" accept
+
+            # VPN clients: infra, and anywhere else except the home/wan vlan.
+            # Client-to-client VPN traffic (192.168.3.0/24) is dropped; only
+            # the gateway itself (192.168.3.1) is reachable, via input above.
+            iifname "wg0" oifname "wg0" ip daddr 192.168.3.0/24 drop
+            iifname "wg0" oifname "vlan-infra" ip daddr 192.168.2.0/24 accept
+            iifname "wg0" oifname "vlan-wan" ip daddr 192.168.1.0/24 drop
+            iifname "wg0" oifname "vlan-wan" accept
           }
 
           chain output {

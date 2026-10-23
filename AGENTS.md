@@ -5,6 +5,14 @@ detail **must be stored** in this file.
 
 Current advancement of the project should be stored in the @AGENTS.md file.
 
+## Standing instructions
+
+- Whenever a service is published on `cluster-router`'s WAN-facing address
+  (`192.168.1.145`, `vlan-wan`) — VPN access, port-forwarding from the
+  cluster, or any other service made reachable from the home/WAN side —
+  the "Published ports" table in @README.md must be updated to list the
+  bound address, port, and service.
+
 ## Progress
 
 - `cluster-router` NixOS configuration implemented under
@@ -36,14 +44,17 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   so colmena can reach the host once imaged.
 - `vlan-wan` has a default route (`0.0.0.0/0` via `net.vlans.wan.gateway`,
   set in `nix/hosts/lib.nix`).
-- **`networking.nftables.enable` is currently set to `false`** — the
-  firewall is intentionally disabled during initial bring-up/testing of the
-  physical hardware and network wiring. There is no inbound filtering at
-  all right now (SSH and everything else reachable from both vlans). This
-  must be flipped back to `true` before any real/production deployment.
-- First SD image built and flashed to hardware is in progress (bring-up
-  phase); the switch port connecting to cluster-router has been configured
-  as an 802.1Q trunk carrying vlan 1 + vlan 10.
+- `networking.nftables.enable` is back to `true` (bring-up debugging that
+  required it disabled is done). Ruleset: `vlan-infra` is fully trusted;
+  `vlan-wan` only accepts SSH, WireGuard, and ping; `wg0` (VPN clients) can
+  reach the router itself, `vlan-infra`, and the general internet via
+  `vlan-wan`, but not `vlan-wan`'s home subnet (192.168.1.0/24) nor other
+  VPN clients (192.168.3.0/24) — see README's flow matrix/ports table for
+  specifics.
+- First SD image built and flashed to hardware; the switch port connecting
+  to cluster-router has been configured as an 802.1Q trunk carrying vlan 1
+  + vlan 10. `colmena apply` has succeeded against the real host at
+  192.168.1.145.
 
 ## Not yet started
 
