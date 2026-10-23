@@ -169,6 +169,12 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `kubectl port-forward` access to `argocd-server`. Revisit once real
   ingress/gateway access patterns are defined and explicit allow rules can
   be scoped instead of disabling the policies outright.
+- `infrastructure/argocd/values.yaml`'s `extraObjects` adds an `HTTPRoute`
+  (`argocd` namespace) attaching to `private-gateway`'s `http` listener
+  (see the nginx-gateway-fabric section below for the hostname
+  convention), hostname `argocd.int.midugh.fr`, forwarding to
+  `argocd-server`'s `http`/80 port — http only for now, same as every
+  other route until TLS exists.
 - **ArgoCD's own initial bootstrap install must be done with `helm
   install`/`helm template`, not a raw manifest install (e.g. the upstream
   `install.yaml`).** This repo's first manual bootstrap used a raw
@@ -256,6 +262,17 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     purely a naming/intent convention (attach to `private-gateway` unless
     a route genuinely needs public exposure), not something enforced by
     any manifest.
+  - **Hostname convention**: by default, every `HTTPRoute` attached to
+    `private-gateway` is served under the `int.midugh.fr` subdomain (e.g.
+    `argocd.int.midugh.fr` for the ArgoCD UI) — this is a naming
+    convention applied per-`HTTPRoute` (each lists its own `hostnames:`
+    explicitly; the Gateway's listener has no `hostname` restriction of
+    its own), not something enforced by the Gateway/listener itself.
+    `public-gateway` routes are expected to use real external domain(s)
+    once defined (not yet decided). Both gateways' `http` listeners set
+    `allowedRoutes.namespaces.from: All`, so an `HTTPRoute` can live in
+    any namespace (e.g. `argocd`) and still attach to a gateway in
+    `gateway-system` via `parentRefs[].namespace`.
   - `cluster-router` forwards to these NodePorts via haproxy: `let`-block
     `haproxyPorts` in `nix/hosts/cluster-router/default.nix` gains two
     entries binding `192.168.1.161:30080` (private) and
@@ -308,8 +325,12 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   combination was initially wrong on `nginx-gateway-fabric`, causing a
   403 on sync), and switched `argocd` from its classic index-based Helm
   repo to its OCI chart source since it publishes to both. Verified live:
-  `argocd` syncs cleanly (`Synced`/`Succeeded`); `nginx-gateway-fabric`
-  was still pending the CRDs fix as of this writing.
+  both `argocd` and `nginx-gateway-fabric` now sync cleanly once the
+  Gateway API CRDs and the `repoURL` fixes landed.
+- `infrastructure/argocd/values.yaml` gained an `HTTPRoute` (via
+  `extraObjects`) exposing the ArgoCD UI at `argocd.int.midugh.fr` through
+  `private-gateway`, http only — the first real route proving out the
+  gateway setup end-to-end.
 - `cluster-router` NixOS configuration implemented under
   `nix/hosts/cluster-router`, covering: vlan-tagged interfaces, ip
   forwarding, nftables firewall, kea DHCP server for the infra vlan, a
