@@ -17,6 +17,19 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   its description (e.g. no `Co-Authored-By` lines referencing an agent).
   The same applies to branch names, tag names, and any other git-related
   entity (PR titles/descriptions, etc.).
+- Every port published via `cluster-router`'s haproxy load balancer
+  (`services.cluster.haproxy.ports`) is reachable from `vlan-wan` by
+  default, not just from `vlan-infra`/`wg0` — the nftables `input` chain
+  in `nix/hosts/cluster-router/default.nix` generates a `vlan-wan` accept
+  rule per haproxy `localPort` automatically (see `wanPublishedPorts` in
+  that file's `let` block). This is an `input`-chain rule, not `forward`:
+  haproxy listens on the router's own `vlan-infra` address, so this
+  traffic terminates at the router rather than being forwarded through
+  it (unlike e.g. Talos apid/tcp:50000, which really does forward
+  straight to a `vlan-infra` node and so has its own `forward`-chain
+  rule). A port must be explicitly excluded from `wanPublishedPorts` to
+  keep it off `vlan-wan`; don't assume a haproxy-published port is
+  VPN/infra-only without checking that list.
 - Do not run `nix build` (or similar) against `cluster-router`'s
   configuration just to validate a change — `colmena apply` will build it
   at deploy time anyway, so a separate local build is redundant busywork.
@@ -61,14 +74,18 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   set in `nix/hosts/lib.nix`).
 - `networking.nftables.enable` is back to `true` (bring-up debugging that
   required it disabled is done). Ruleset: `vlan-infra` is fully trusted;
-  `vlan-wan` only accepts SSH, WireGuard, ping, and forwards tcp/50000
-  (Talos apid) through to `vlan-infra`, by explicit decision — this is the
-  only `vlan-wan` -> `vlan-infra` path not gated behind the VPN, chosen
-  deliberately over routing Talos API access via `wg0` like everything
-  else; `wg0` (VPN clients) can reach the router itself, `vlan-infra`, and
-  the general internet via `vlan-wan`, but not `vlan-wan`'s home subnet
-  (192.168.1.0/24) nor other VPN clients (192.168.3.0/24) — see README's
-  flow matrix/ports table for specifics.
+  `vlan-wan` accepts SSH, WireGuard, ping, forwards tcp/50000 (Talos
+  apid) through to `vlan-infra` by explicit decision (the only
+  `vlan-wan` -> `vlan-infra` `forward`-chain path not gated behind the
+  VPN by itself), and accepts every port published via haproxy (currently
+  just tcp/6443, the Kubernetes API) on the router's own `input` chain,
+  since haproxy listens on the router itself — both generated from
+  `services.cluster.haproxy.ports` via `wanPublishedPorts` in
+  `nix/hosts/cluster-router/default.nix`, see the standing instruction
+  above; `wg0` (VPN clients) can reach the router itself, `vlan-infra`,
+  and the general internet via `vlan-wan`, but not `vlan-wan`'s home
+  subnet (192.168.1.0/24) nor other VPN clients (192.168.3.0/24) — see
+  README's flow matrix/ports table for specifics.
 - First SD image built and flashed to hardware; the switch port connecting
   to cluster-router has been configured as an 802.1Q trunk carrying vlan 1
   + vlan 10. `colmena apply` has succeeded against the real host at

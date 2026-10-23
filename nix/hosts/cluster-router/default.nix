@@ -1,5 +1,20 @@
-{ inputs, pkgs, ... }:
+{ inputs, pkgs, lib, ... }:
 let
+  # Ports published via the haproxy load balancer (see
+  # services.cluster.haproxy.ports below). By default, every one of these
+  # is also reachable from vlan-wan (the nftables input chain below
+  # generates an accept rule per localPort, since haproxy listens on the
+  # router itself) unless explicitly excluded from `wanPublishedPorts`.
+  haproxyPorts = [
+    {
+      remotePort = 6443;
+      localPort = 6443;
+    }
+  ];
+
+  # haproxyPorts entries to expose from vlan-wan; defaults to all of them.
+  wanPublishedPorts = haproxyPorts;
+
   tftpRoot = "/var/lib/tftpboot";
 
   rpiFirmware = pkgs.raspberrypifw;
@@ -167,6 +182,13 @@ in
             iifname "vlan-wan" tcp dport 22 accept
             iifname "vlan-wan" udp dport 51820 accept
             iifname "wg0" accept
+
+            # haproxy itself listens on the router (vlan-infra address), so
+            # traffic to its published ports terminates here rather than
+            # being forwarded -- see wanPublishedPorts above.
+            ${lib.concatMapStringsSep "\n            " (
+              p: ''iifname "vlan-wan" tcp dport ${toString p.localPort} accept''
+            ) wanPublishedPorts}
           }
 
           chain forward {
@@ -280,11 +302,6 @@ in
       net.hosts.cluster-worker-1.infra
       net.hosts.cluster-worker-2.infra
     ];
-    ports = [
-      {
-        remotePort = 6443;
-        localPort = 6443;
-      }
-    ];
+    ports = haproxyPorts;
   };
 }

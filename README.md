@@ -26,6 +26,7 @@ published on `cluster-router`.
 | 192.168.1.145 | 22/tcp | SSH |
 | 192.168.1.145 | 51820/udp | WireGuard VPN |
 | 192.168.2.0/24 (vlan-infra) | 50000/tcp | Talos apid (talosctl management API), forwarded from `vlan-wan` |
+| 192.168.2.1 (vlan-infra, haproxy) | 6443/tcp | Kubernetes API, forwarded from `vlan-wan` to haproxy |
 
 ### Hosts
 
