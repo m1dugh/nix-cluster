@@ -1,5 +1,7 @@
 { inputs, pkgs, lib, ... }:
 let
+  net = import ../lib.nix;
+
   # Ports published via the haproxy load balancer (see
   # services.cluster.haproxy.ports below). By default, every one of these
   # is also reachable from vlan-wan (the nftables input chain below
@@ -21,6 +23,8 @@ let
     {
       remotePort = 6443;
       localPort = 6443;
+      address = net.hosts.cluster-router.wan; # 192.168.1.145
+      interface = "vlan-wan";
     }
     # nginx-gateway-fabric: standard 80/443 externally, forwarded to each
     # gateway's NodePort on the backend nodes (http only for now; 443
@@ -86,9 +90,6 @@ let
       APPEND talos.platform=metal console=ttyS0 console=tty0
     EOF
   '';
-in
-let
-  net = import ../lib.nix;
 in
 {
   imports = [

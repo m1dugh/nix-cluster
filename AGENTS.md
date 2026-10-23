@@ -20,16 +20,18 @@ Current advancement of the project should be stored in the @AGENTS.md file.
 - Every port published via `cluster-router`'s haproxy load balancer
   (`services.cluster.haproxy.ports`) is reachable from `vlan-wan` by
   default, not just from `vlan-infra`/`wg0` — the nftables `input` chain
-  in `nix/hosts/cluster-router/default.nix` generates a `vlan-wan` accept
-  rule per haproxy `localPort` automatically (see `wanPublishedPorts` in
-  that file's `let` block). This is an `input`-chain rule, not `forward`:
-  haproxy listens on the router's own `vlan-infra` address, so this
-  traffic terminates at the router rather than being forwarded through
-  it (unlike e.g. Talos apid/tcp:50000, which really does forward
-  straight to a `vlan-infra` node and so has its own `forward`-chain
-  rule). A port must be explicitly excluded from `wanPublishedPorts` to
-  keep it off `vlan-wan`; don't assume a haproxy-published port is
-  VPN/infra-only without checking that list.
+  in `nix/hosts/cluster-router/default.nix` generates an accept rule per
+  haproxy publish address/port automatically (see `wanPublishedPorts` in
+  that file's `let` block; each entry's own `interface`/`address` decides
+  which vlan and, when set, which specific address the rule is scoped
+  to). This is an `input`-chain rule, not `forward`: haproxy listens on
+  the router itself (whichever address a given entry binds — `vlan-infra`
+  or `vlan-wan`), so this traffic terminates at the router rather than
+  being forwarded through it (unlike e.g. Talos apid/tcp:50000, which
+  really does forward straight to a `vlan-infra` node and so has its own
+  `forward`-chain rule). A port must be explicitly excluded from
+  `wanPublishedPorts` to keep it off `vlan-wan`; don't assume a
+  haproxy-published port is VPN/infra-only without checking that list.
 - Do not run `nix build` (or similar) against `cluster-router`'s
   configuration just to validate a change — `colmena apply` will build it
   at deploy time anyway, so a separate local build is redundant busywork.
@@ -346,6 +348,21 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
 
 ## Progress
 
+- Kubernetes API (`6443`) moved from publishing on `192.168.2.1`
+  (vlan-infra, implicitly bound there via `address = null`) to
+  `192.168.1.145` (vlan-wan, the router's existing WAN address) —
+  `haproxyPorts`' `6443` entry now sets `address = net.hosts.cluster-router.wan;
+  interface = "vlan-wan";` explicitly. `net` (from `nix/hosts/lib.nix`)
+  had to be imported earlier in the file's `let` block for this (it was
+  previously only imported in a second, later `let` the haproxy-ports
+  list sits outside of); the redundant later import was removed. This
+  required a corresponding Talos change (cert SANs + certificate
+  rotation, done manually via `talosctl` — not tracked by this repo) so
+  the existing Talos API server's TLS cert actually covers
+  `192.168.1.145`; not doing that first would break `talosctl`/any
+  Kubernetes API client the moment DNS/clients start hitting the new
+  address with a cert that doesn't list it. README's Published ports
+  table updated accordingly.
 - `infrastructure/kustomization.yaml` created as the app-of-apps root
   (empty `resources: []` for now — the app-of-apps Application itself is
   not yet deployed; see the section above).
@@ -415,12 +432,16 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `vlan-wan` accepts SSH, WireGuard, ping, forwards tcp/50000 (Talos
   apid) through to `vlan-infra` by explicit decision (the only
   `vlan-wan` -> `vlan-infra` `forward`-chain path not gated behind the
-  VPN by itself), and accepts every port published via haproxy (currently
-  just tcp/6443, the Kubernetes API) on the router's own `input` chain,
-  since haproxy listens on the router itself — both generated from
-  `services.cluster.haproxy.ports` via `wanPublishedPorts` in
-  `nix/hosts/cluster-router/default.nix`, see the standing instruction
-  above; `wg0` (VPN clients) can reach the router itself, `vlan-infra`,
+  VPN by itself), and accepts every port published via haproxy on the
+  router's own `input` chain, since haproxy listens on the router itself
+  — generated from `services.cluster.haproxy.ports` via
+  `wanPublishedPorts` in `nix/hosts/cluster-router/default.nix`, each
+  scoped to its specific publish address when one is set (see the
+  standing instruction above and the nginx-gateway-fabric section's
+  firewall notes for the full rule-generation details). Currently:
+  `192.168.1.145:6443` (Kubernetes API) and `192.168.1.161`/
+  `192.168.1.162:80` (the two gateways) — see README's Published ports
+  table. `wg0` (VPN clients) can reach the router itself, `vlan-infra`,
   and the general internet via `vlan-wan`, but not `vlan-wan`'s home
   subnet (192.168.1.0/24) nor other VPN clients (192.168.3.0/24) — see
   README's flow matrix/ports table for specifics.
