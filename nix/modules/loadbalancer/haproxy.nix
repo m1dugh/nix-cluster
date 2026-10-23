@@ -7,6 +7,7 @@ let
       remotePort,
       localPort,
       address,
+      interface,
     }:
     let
       bindAddress = if address == null then "*" else address;
@@ -23,7 +24,9 @@ let
       ) cfg.nodes}
     '';
 
-  portAddresses = lib.unique (lib.filter (addr: addr != null) (map (p: p.address) cfg.ports));
+  addressesByInterface = lib.groupBy (p: p.interface) (
+    lib.filter (p: p.address != null) cfg.ports
+  );
 in
 {
   options.services.cluster.haproxy = {
@@ -41,7 +44,7 @@ in
     };
 
     ports = lib.mkOption {
-      description = "List of (remotePort, localPort, address) tuples to bind and forward.";
+      description = "List of (remotePort, localPort, address, interface) tuples to bind and forward.";
       default = [ ];
       type = lib.types.listOf (
         lib.types.submodule {
@@ -58,8 +61,19 @@ in
               type = lib.types.nullOr lib.types.str;
               default = null;
               description = ''
-                Address to bind this port on. Added to `interface` if not
-                already present there. If null, binds on all addresses.
+                Address to bind this port on. Added to `interface` (or this
+                port's own `interface` override) if not already present
+                there. If null, binds on all addresses.
+              '';
+            };
+
+            interface = lib.mkOption {
+              type = lib.types.str;
+              default = cfg.interface;
+              description = ''
+                Network interface to bind this port's `address` on.
+                Defaults to the top-level `interface`; set per-port when an
+                `address` belongs to a different interface/vlan.
               '';
             };
           };
@@ -69,10 +83,14 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    networking.interfaces.${cfg.interface}.ipv4.addresses = map (addr: {
-      address = addr;
-      prefixLength = 32;
-    }) portAddresses;
+    networking.interfaces = lib.mapAttrs (
+      interface: ports: {
+        ipv4.addresses = map (addr: {
+          address = addr;
+          prefixLength = 32;
+        }) (lib.unique (map (p: p.address) ports));
+      }
+    ) addressesByInterface;
 
     services.haproxy = {
       enable = true;

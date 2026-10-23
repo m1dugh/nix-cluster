@@ -87,33 +87,52 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `argocd` Application, so once applied manually the first time, both it
   and everything under `infrastructure/` stay continuously reconciled with
   no further manual `kubectl apply` steps.
-- Each child `Application` manifest under `infrastructure/` follows the
-  same shape: point `spec.source` at either a path in this repo (for
-  Kustomize/plain-manifest infra defined here) or an external Helm/git
-  source, and `spec.destination` at the target namespace. Exact structure
-  (whether apps live as one-file-per-app directly under `infrastructure/`,
-  or each in its own subfolder with its own `kustomization.yaml`) is
-  expected to firm up as the first real apps are added — treat this section
-  as provisional until then, and update it as the pattern solidifies.
-- The settled per-app layout (first applied to `infrastructure/argocd/`):
-  each app gets its own subfolder containing `application.yaml` (the
-  ArgoCD `Application` resource) and `values.yaml` (Helm values override
-  for that app's chart, empty/placeholder until actually needed). For a
-  Helm-chart-based app, `application.yaml` uses `spec.sources` (plural,
-  not `spec.source` — the two are mutually exclusive) with two entries:
-  the upstream Helm chart repo, and this git repo referenced via `ref:
-  values` so the chart's `helm.valueFiles` can point at
-  `$values/infrastructure/<app>/values.yaml`. This lets each app pin its
-  own chart version/repo independently while still sourcing its values
-  override from this git repo. The git source's `targetRevision` must be
-  `main` — this repo's default branch is `main` (`master` is only the old
-  name, still lingering as `origin`'s stale remote-tracking `HEAD` locally;
-  not the branch to target).
+- **Settled per-app layout under `infrastructure/`** — pick exactly one of
+  the following per app, in this order of preference:
+  1. **No extra manifests, no (or trivial) values overriding (< 3
+     overridden variables)**: a single `<app-name>.yaml` file directly
+     under `infrastructure/`, containing just the ArgoCD `Application`.
+     Values overrides this small are embedded inline in the Application's
+     `spec.source.helm.values` (or `spec.sources[].helm.values`) rather
+     than pulled from a separate file.
+  2. **Values overriding with 3+ variables (and no extra manifests)**: a
+     subfolder `infrastructure/<app-name>/` containing `application.yaml`
+     (the ArgoCD `Application`) and `values.yaml` (the Helm values
+     override file it points at). This is the threshold past which inline
+     `helm.values` gets unwieldy enough to warrant a dedicated file.
+  3. **Extra plain Kubernetes manifests needed (with or without values
+     overriding)**: the same subfolder shape as (2),
+     `infrastructure/<app-name>/`, plus an additional `kustomization.yaml`
+     in that subfolder listing every extra manifest for the app. The
+     app's `application.yaml` points at this subfolder (as a Kustomize
+     source) rather than only at a Helm chart.
+  - `infrastructure/argocd/` predates this rule and is the one deliberate
+    exception: it uses the subfolder shape even though
+    `values.yaml` currently holds only 2 variables
+    (`configs.params.server.insecure`, `global.networkPolicy.create`),
+    because it needs the `ref: values` git source (see below) to let the
+    self-managed Helm chart read its own values file from this repo — a
+    structural need unrelated to the variable-count threshold. New apps
+    under this threshold that don't need that `ref: values` pattern should
+    use case 1 (inline values) instead.
+  - For a Helm-chart-based app using case 2 or 3,
+    `application.yaml` uses `spec.sources` (plural, not `spec.source` —
+    the two are mutually exclusive) with two entries: the upstream Helm
+    chart repo, and this git repo referenced via `ref: values` so the
+    chart's `helm.valueFiles` can point at
+    `$values/infrastructure/<app>/values.yaml`. This lets each app pin its
+    own chart version/repo independently while still sourcing its values
+    override from this git repo. The git source's `targetRevision` must be
+    `main` — this repo's default branch is `main` (`master` is only the
+    old name, still lingering as `origin`'s stale remote-tracking `HEAD`
+    locally; not the branch to target).
 - `infrastructure/argocd/` is ArgoCD managing itself: `application.yaml`
   points at the upstream `argo-cd` Helm chart (repo
   `https://argoproj.github.io/argo-helm`) with `values.yaml` as the
-  override, `targetRevision: "*"` (latest chart version — tighten to a pin
-  once the install stabilizes), synced into the `argocd` namespace with
+  override, `targetRevision: 10.11.1` (pinned to the chart version
+  actually deployed — bump deliberately, not via a wildcard, so ArgoCD
+  never silently jumps chart versions on an unrelated sync), synced into
+  the `argocd` namespace with
   automated sync + self-heal + prune, plus `ServerSideApply=true` in
   `syncOptions` (server-side apply, rather than client-side, for this
   Application's sync). This Application is included in
@@ -155,6 +174,71 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `values.yaml` from the start avoids this entirely, since the initial
   objects would already carry the labels/port names the chart's own
   Service selectors expect.
+- `infrastructure/nginx-gateway-fabric/` deploys NGINX Gateway Fabric
+  (Kubernetes Gateway API implementation) via its upstream OCI Helm chart
+  (`oci://ghcr.io/nginx/charts`, chart `nginx-gateway-fabric`, pinned
+  `targetRevision`), into the `gateway-system` namespace. Like
+  `infrastructure/argocd/`, `application.yaml` uses `spec.sources` with a
+  `ref: values` git source so `helm.valueFiles` can point at
+  `infrastructure/nginx-gateway-fabric/values.yaml` in this repo, and
+  `syncOptions` includes `ServerSideApply=true` (the chart's `crds/`
+  directory — one per Gateway API extension type NGF defines, e.g.
+  `NginxProxy`, `ClientSettingsPolicy` — is large enough that plain
+  client-side apply risks hitting the annotation-size limit).
+  - One Helm release defines both gateways: the chart's `gateways:` value
+    is a list, each entry rendered as its own `Gateway` resource, all
+    under NGF's single `GatewayClass` (`nginx`, controller
+    `gateway.nginx.org/nginx-gateway-controller`) — so one release/one
+    `Application` is enough for multiple Gateways; there is no need for
+    (and the chart does not cleanly support) one Helm release per Gateway.
+  - `private-gateway` and `public-gateway` are each `NodePort`-typed via
+    their own `NginxProxy` custom resource (NGF's way of configuring the
+    Service a Gateway gets — the chart's own `templates/service.yaml` is
+    unrelated, it's only the control-plane agent-grpc Service). Each
+    Gateway's `spec.infrastructure.parametersRef` points at its own
+    `NginxProxy` (`private-gateway-proxy-config` /
+    `public-gateway-proxy-config`), and each `NginxProxy` sets
+    `spec.kubernetes.service.type: NodePort` plus an explicit
+    `nodePorts: [{listenerPort, port}]` mapping. These two `NginxProxy`
+    objects are added via the chart's `extraObjects` values list (there is
+    no dedicated values key for "extra NginxProxy per gateway").
+  - Current node ports: `private-gateway` listener `http`/80 ->
+    NodePort 30080; `public-gateway` listener `http`/80 -> NodePort 31080.
+  - **TLS is not implemented yet.** Neither Gateway has an `https`
+    listener, and the 443-NodePort slots (30443/`private-gateway`,
+    31443/`public-gateway`) are left as comments in
+    `infrastructure/nginx-gateway-fabric/values.yaml` rather than real
+    `nodePorts` entries, since a `NodePort` with no matching Gateway
+    listener port is simply ignored by NGF. Add the `https` listeners (TLS
+    `mode: Terminate` + `certificateRefs`) and the corresponding
+    `nodePorts` entries together, once cert-manager is installed and can
+    issue the certificates those listeners would reference.
+  - There is no "default gateway" concept in Gateway API (unlike
+    `StorageClass`'s default annotation) — every `HTTPRoute` must name its
+    `parentRefs` explicitly, so `private-gateway` vs `public-gateway` is
+    purely a naming/intent convention (attach to `private-gateway` unless
+    a route genuinely needs public exposure), not something enforced by
+    any manifest.
+  - `cluster-router` forwards to these NodePorts via haproxy: `let`-block
+    `haproxyPorts` in `nix/hosts/cluster-router/default.nix` gains two
+    entries binding `192.168.1.161:30080` (private) and
+    `192.168.1.162:31080` (public) on `vlan-wan`, each load-balanced
+    across all 3 k8s nodes (NodePort services are reachable from any
+    node) to the matching remote NodePort — same pattern as the existing
+    `6443` (Kubernetes API) entry. Per the standing instruction on
+    `wanPublishedPorts`, both are included by default (not excluded), so
+    they're reachable from `vlan-wan` like every other haproxy-published
+    port; see README's "Published ports" table.
+  - This required extending `nix/modules/loadbalancer/haproxy.nix`: it
+    previously bound every port's `address` onto one shared
+    `cfg.interface` (fine while the only haproxy-published port, `6443`,
+    binds on `vlan-infra` with `address = null`), but `192.168.1.161`/
+    `.162` belong to `vlan-wan`, a different interface than
+    `cluster-router`'s `services.cluster.haproxy.interface = "vlan-infra"`.
+    Added a per-port `interface` option (defaulting to `cfg.interface`,
+    so the existing `6443` entry is unaffected) and grouped
+    `networking.interfaces.<iface>.ipv4.addresses` by that per-port
+    interface instead of assuming a single one.
 
 ## Progress
 
@@ -170,6 +254,12 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `infrastructure/kustomization.yaml` so it self-manages once live. Not
   yet applied to the cluster; `kubectl apply -f infrastructure/bootstrap.yaml`
   is the next (one-time, manual) step.
+- `infrastructure/nginx-gateway-fabric/` added (`application.yaml` +
+  `values.yaml`, wired into `infrastructure/kustomization.yaml`) — NGINX
+  Gateway Fabric with `private-gateway`/`public-gateway` NodePort
+  Gateways (30080/31080, http only — TLS not yet implemented, see the
+  section above) plus matching `cluster-router` haproxy bindings on
+  `192.168.1.161`/`.162`. Not yet synced/live on the cluster.
 - `cluster-router` NixOS configuration implemented under
   `nix/hosts/cluster-router`, covering: vlan-tagged interfaces, ip
   forwarding, nftables firewall, kea DHCP server for the infra vlan, a

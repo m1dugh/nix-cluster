@@ -1,0 +1,63 @@
+gateways:
+  - name: private-gateway
+    spec:
+      gatewayClassName: nginx
+      infrastructure:
+        parametersRef:
+          group: gateway.nginx.org
+          kind: NginxProxy
+          name: private-gateway-proxy-config
+      listeners:
+        - name: http
+          port: 80
+          protocol: HTTP
+          allowedRoutes:
+            namespaces:
+              from: All
+  - name: public-gateway
+    spec:
+      gatewayClassName: nginx
+      infrastructure:
+        parametersRef:
+          group: gateway.nginx.org
+          kind: NginxProxy
+          name: public-gateway-proxy-config
+      listeners:
+        - name: http
+          port: 80
+          protocol: HTTP
+          allowedRoutes:
+            namespaces:
+              from: All
+
+extraObjects:
+  - |
+    apiVersion: gateway.nginx.org/v1alpha2
+    kind: NginxProxy
+    metadata:
+      name: private-gateway-proxy-config
+    spec:
+      kubernetes:
+        service:
+          type: NodePort
+          nodePorts:
+            - listenerPort: 80
+              port: 30080
+            # listenerPort 443 / port 30443 reserved for the https listener,
+            # added once cert-manager is installed (see private-gateway's
+            # spec.listeners above, currently http-only).
+  - |
+    apiVersion: gateway.nginx.org/v1alpha2
+    kind: NginxProxy
+    metadata:
+      name: public-gateway-proxy-config
+    spec:
+      kubernetes:
+        service:
+          type: NodePort
+          nodePorts:
+            - listenerPort: 80
+              port: 31080
+            # listenerPort 443 / port 31443 reserved for the https listener,
+            # added once cert-manager is installed (see public-gateway's
+            # spec.listeners above, currently http-only).

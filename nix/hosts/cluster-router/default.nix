@@ -10,6 +10,20 @@ let
       remotePort = 6443;
       localPort = 6443;
     }
+    # nginx-gateway-fabric NodePorts (http only for now; https NodePorts
+    # are added once cert-manager + TLS listeners exist, see AGENTS.md).
+    {
+      remotePort = 30080;
+      localPort = 30080;
+      address = "192.168.1.161"; # private-gateway
+      interface = "vlan-wan";
+    }
+    {
+      remotePort = 31080;
+      localPort = 31080;
+      address = "192.168.1.162"; # public-gateway
+      interface = "vlan-wan";
+    }
   ];
 
   # haproxyPorts entries to expose from vlan-wan; defaults to all of them.
