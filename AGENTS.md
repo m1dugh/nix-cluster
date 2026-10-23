@@ -40,9 +40,100 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   `chore`, `ci` as needed. A breaking change is marked either with `!`
   right after the type/scope (e.g. `feat(router)!: ...`) or a
   `BREAKING CHANGE:` footer.
+- Everything related to what is deployed on the kubernetes cluster —
+  ArgoCD `Application` manifests, the app-of-apps/bootstrap manifest, Helm
+  values overrides, any plain Kubernetes manifests — must live under the
+  `infrastructure/` folder. Nothing cluster-deployment-related belongs at
+  the repo root or elsewhere (`bootstrap.yaml` itself lives at
+  `infrastructure/bootstrap.yaml`, not the repo root, for this reason).
+
+## ArgoCD / cluster infrastructure (app of apps)
+
+Once the kubernetes cluster is up, all in-cluster infrastructure (beyond
+what's bootstrapped manually) is managed declaratively via ArgoCD using an
+"app of apps" pattern, rooted at the `infrastructure/` folder in this repo:
+
+- **ArgoCD itself** is installed manually (e.g. `kubectl apply` of the
+  upstream install manifest) into the `argocd` namespace — it cannot
+  deploy itself. This is a one-time, out-of-band bootstrap step, not
+  managed by this repo's manifests.
+- **`infrastructure/`** is a plain Kustomize root (`kustomization.yaml`
+  with a `resources:` list) at the repo root. It does not itself contain
+  application workload manifests — it lists ArgoCD `Application` resources,
+  one per piece of infrastructure to deploy (e.g. cert-manager, ingress
+  controller, monitoring stack, etc. — added incrementally as the cluster
+  grows).
+- **The "app of apps"** is a single ArgoCD `Application` resource (not yet
+  created) whose `spec.source` points at this git repo, path
+  `infrastructure/`. ArgoCD reconciles that folder and, for every
+  `Application` manifest it finds there, creates/manages the corresponding
+  ArgoCD Application — which in turn deploys that piece of infrastructure.
+  This is the standard "app of apps" bootstrap pattern: one parent
+  Application that owns the lifecycle of all the child Applications listed
+  under `infrastructure/`.
+- **Bootstrapping order**: the app-of-apps Application itself is applied
+  manually the first time (`kubectl apply -f infrastructure/bootstrap.yaml`),
+  the same way ArgoCD itself is. It is also listed as a resource in
+  `infrastructure/kustomization.yaml` (`bootstrap.yaml`), so once it's
+  live and ArgoCD reconciles `infrastructure/`, it adopts/self-manages its
+  own parent Application the same way `infrastructure/argocd/` does for
+  ArgoCD itself.
+- **`infrastructure/bootstrap.yaml`** is that app-of-apps Application:
+  plain `spec.source` (single source, not `sources` — it has no Helm
+  chart/values to combine, just this git repo) pointing at
+  `repoURL: https://github.com/m1dugh/nix-cluster.git`,
+  `targetRevision: main`, `path: infrastructure`. Auto-sync
+  (`syncPolicy.automated` with `prune`/`selfHeal`) is enabled, same as the
+  `argocd` Application, so once applied manually the first time, both it
+  and everything under `infrastructure/` stay continuously reconciled with
+  no further manual `kubectl apply` steps.
+- Each child `Application` manifest under `infrastructure/` follows the
+  same shape: point `spec.source` at either a path in this repo (for
+  Kustomize/plain-manifest infra defined here) or an external Helm/git
+  source, and `spec.destination` at the target namespace. Exact structure
+  (whether apps live as one-file-per-app directly under `infrastructure/`,
+  or each in its own subfolder with its own `kustomization.yaml`) is
+  expected to firm up as the first real apps are added — treat this section
+  as provisional until then, and update it as the pattern solidifies.
+- The settled per-app layout (first applied to `infrastructure/argocd/`):
+  each app gets its own subfolder containing `application.yaml` (the
+  ArgoCD `Application` resource) and `values.yaml` (Helm values override
+  for that app's chart, empty/placeholder until actually needed). For a
+  Helm-chart-based app, `application.yaml` uses `spec.sources` (plural,
+  not `spec.source` — the two are mutually exclusive) with two entries:
+  the upstream Helm chart repo, and this git repo referenced via `ref:
+  values` so the chart's `helm.valueFiles` can point at
+  `$values/infrastructure/<app>/values.yaml`. This lets each app pin its
+  own chart version/repo independently while still sourcing its values
+  override from this git repo. The git source's `targetRevision` must be
+  `main` — this repo's default branch is `main` (`master` is only the old
+  name, still lingering as `origin`'s stale remote-tracking `HEAD` locally;
+  not the branch to target).
+- `infrastructure/argocd/` is ArgoCD managing itself: `application.yaml`
+  points at the upstream `argo-cd` Helm chart (repo
+  `https://argoproj.github.io/argo-helm`) with `values.yaml` (currently
+  empty) as the override, `targetRevision: "*"` (latest chart version —
+  tighten to a pin once the install stabilizes), synced into the `argocd`
+  namespace with automated sync + self-heal + prune. This Application is
+  included in `infrastructure/kustomization.yaml`'s `resources:`, so once
+  the app-of-apps parent Application (still to be created) reconciles
+  `infrastructure/`, ArgoCD will adopt management of its own Helm
+  deployment (which was installed manually as the initial bootstrap step).
 
 ## Progress
 
+- `infrastructure/kustomization.yaml` created as the app-of-apps root
+  (empty `resources: []` for now — the app-of-apps Application itself is
+  not yet deployed; see the section above).
+- ArgoCD installed manually into the `argocd` namespace on the cluster.
+- `infrastructure/argocd/application.yaml` + `values.yaml` added (ArgoCD
+  self-managing itself via the upstream Helm chart, see the section
+  above) and wired into `infrastructure/kustomization.yaml`.
+- `infrastructure/bootstrap.yaml` added — the app-of-apps Application
+  pointing at `infrastructure/`, auto-sync enabled — and listed in
+  `infrastructure/kustomization.yaml` so it self-manages once live. Not
+  yet applied to the cluster; `kubectl apply -f infrastructure/bootstrap.yaml`
+  is the next (one-time, manual) step.
 - `cluster-router` NixOS configuration implemented under
   `nix/hosts/cluster-router`, covering: vlan-tagged interfaces, ip
   forwarding, nftables firewall, kea DHCP server for the infra vlan, a
