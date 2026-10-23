@@ -1,5 +1,50 @@
 { inputs, pkgs, ... }:
 let
+  tftpRoot = "/var/lib/tftpboot";
+
+  rpiFirmware = pkgs.raspberrypifw;
+  rpiUboot = pkgs.ubootRaspberryPi4_64bit;
+
+  # RPi4 EEPROM boot firmware looks for these at the TFTP root. u-boot.bin
+  # is renamed to kernel8.img so the RPi4 firmware chainloads it as if it
+  # were the Linux kernel; it then runs U-Boot's own PXE client.
+  tftpbootFiles = pkgs.runCommand "cluster-router-tftpboot" { } ''
+    mkdir -p $out
+    cp ${rpiFirmware}/share/raspberrypi/boot/start4.elf $out/start4.elf
+    cp ${rpiFirmware}/share/raspberrypi/boot/fixup4.dat $out/fixup4.dat
+    cp ${rpiFirmware}/share/raspberrypi/boot/bcm2711-rpi-4-b.dtb $out/bcm2711-rpi-4-b.dtb
+    cp ${rpiUboot}/u-boot.bin $out/kernel8.img
+
+    cat > $out/config.txt <<'EOF'
+    arm_64bit=1
+    enable_uart=1
+    EOF
+
+    # Tried a boot.scr here to raise kernel_addr_r/ramdisk_addr_r (default
+    # addresses leave only ~38MB for Talos's ~87MB initramfs, and without
+    # the override the INITRD fetch is silently never attempted at all).
+    # Removed: with boot.scr in place, nodes went completely silent after
+    # fetching pxelinux.cfg/default — no further TFTP/DHCP activity ever,
+    # not even a request for the kernel — strongly suggesting the script
+    # itself hangs this U-Boot build rather than fixing the addressing.
+    # Back to this build's compiled-in defaults; the kernel-succeeds/
+    # initrd-never-requested limitation is a separate, still-open problem.
+
+    mkdir -p $out/pxelinux.cfg
+    # Talos kernel/initramfs are dropped manually under
+    # /var/lib/tftpboot/talos/{vmlinuz,initramfs.xz} on the host; not
+    # managed by Nix. talos.platform=metal boots into maintenance mode —
+    # node identity is assigned afterwards via `talosctl apply-config`.
+    cat > $out/pxelinux.cfg/default <<'EOF'
+    DEFAULT talos
+    LABEL talos
+      KERNEL talos/vmlinuz
+      INITRD talos/initramfs.xz
+      APPEND talos.platform=metal console=ttyS0 console=tty0
+    EOF
+  '';
+in
+let
   net = import ../lib.nix;
 in
 {
@@ -130,6 +175,10 @@ in
             ct state established,related accept
             iifname "vlan-infra" oifname "vlan-wan" accept
 
+            # Talos apid (talosctl management API), reachable directly from
+            # the home/wan vlan, not just over the wg0 VPN.
+            iifname "vlan-wan" oifname "vlan-infra" tcp dport 50000 accept
+
             # VPN clients: infra, and anywhere else except the home/wan vlan.
             # Client-to-client VPN traffic (192.168.3.0/24) is dropped; only
             # the gateway itself (192.168.3.1) is reachable, via input above.
@@ -147,59 +196,81 @@ in
     };
   };
 
-  services.kea.dhcp4 = {
+  # Plain DHCP for vlan-infra (Kea was tried first, then dnsmasq for its
+  # native PXE support — see AGENTS.md's Netboot section for that history).
+  #
+  # Netboot (PXE) is PARKED, not removed: after extensive troubleshooting,
+  # nodes could reliably reach the pxelinux.cfg/default stage and
+  # sometimes complete the Talos kernel transfer, but the ~87MB initramfs
+  # transfer and/or subsequent boot was never reliably reached —
+  # intermittent TFTP timeouts, a boot.scr-induced hang, and a tftp-hpa
+  # split that regressed an earlier stage were all tried and reverted.
+  # Parked in favor of flashing Talos directly to SD cards for now; the
+  # PXE-specific settings below are commented out (not deleted) so this
+  # is a quick re-enable when netboot is revisited — uncomment pxe-service
+  # /dhcp-boot/enable-tftp/tftp-root/tftp-mtu and the dhcp-host mapping
+  # reservations stay useful for plain DHCP too.
+  services.dnsmasq = {
     enable = true;
+    resolveLocalQueries = false;
     settings = {
-      interfaces-config.interfaces = [ "vlan-infra" ];
-      lease-database = {
-        type = "memfile";
-        persist = true;
-        name = "/var/lib/kea/dhcp4.leases";
-      };
+      interface = "vlan-infra";
+      bind-interfaces = true;
+      dhcp-range = [ "192.168.2.100,192.168.2.200,255.255.255.0,12h" ];
+      dhcp-option = [
+        "option:router,${net.hosts.cluster-router.infra}"
+        "option:dns-server,${net.hosts.cluster-router.infra}"
+      ];
 
-      subnet4 = [
-        {
-          subnet = net.vlans.infra.cidr;
-          pools = [ { pool = "192.168.2.100 - 192.168.2.200"; } ];
-          option-data = [
-            {
-              name = "routers";
-              data = net.hosts.cluster-router.infra;
-            }
-            {
-              name = "domain-name-servers";
-              data = net.hosts.cluster-router.infra;
-            }
-          ];
+      # netboot, two PXE stages (parked — see comment above):
+      # 1. RPi4 EEPROM firmware identifies as PXEClient and needs dnsmasq's
+      #    native PXE reply (option 43/60 handled internally) before it'll
+      #    proceed past DHCPDISCOVER — dhcp-boot alone isn't enough, per
+      #    raspberrypi/rpi-eeprom#559. pxe-service answers that, then
+      #    fetches start4.elf/kernel8.img (renamed u-boot.bin) over TFTP.
+      # 2. U-Boot's own (non-PXE-ROM) PXE client takes over from there,
+      #    using the plain dhcp-boot filename below.
+      # pxe-service = "0,\"Raspberry Pi Boot\"";
+      # dhcp-boot = "kernel8.img,,${net.hosts.cluster-router.infra}";
+      # enable-tftp = true;
+      # tftp-root = tftpRoot;
+      # Tried splitting file-serving out to tftp-hpa (confirmed dnsmasq's
+      # TFTP is single-process/single-threaded, src/tftp.c, a real
+      # concurrency bottleneck for 2+ simultaneous large transfers) but
+      # tftp-hpa doesn't handle the RPi4 EEPROM firmware's early TFTP
+      # requests correctly — it regressed that *earlier* stage to a
+      # repeating re-request loop that never reached pxelinux.cfg at all,
+      # worse than dnsmasq's intermittent large-file timeouts (which at
+      # least recover via a full-chain retry, and have succeeded). Back
+      # on dnsmasq-only; a smaller blksize to limit fragmentation.
+      # tftp-mtu = 512;
 
-          # netboot: point PXE clients at the TFTP server on this host
-          next-server = net.hosts.cluster-router.infra;
-          boot-file-name = "pxelinux.0";
-        }
+      # d8:3a:dd:26:57:5e confirmed as cluster-master-1. The other two
+      # (7f, 91) are still unconfirmed guesses from netboot troubleshooting
+      # — pinned purely so each client gets a stable address, useful for
+      # plain DHCP too, not only netboot.
+      dhcp-host = [
+        "d8:3a:dd:26:57:7f,${net.hosts.cluster-worker-1.infra}"
+        "d8:3a:dd:26:57:91,${net.hosts.cluster-worker-2.infra}"
+        "d8:3a:dd:26:57:5e,${net.hosts.cluster-master-1.infra}"
       ];
     };
   };
 
-  # Serves Talos netboot images (kernel + initramfs) to the infra vlan.
-  # Images are expected to be dropped under /var/lib/tftpboot by a separate
-  # provisioning step (not yet implemented).
-  services.tftpd = {
-    enable = true;
-    path = "/var/lib/tftpboot";
-  };
-
-  services.nginx = {
-    enable = true;
-    virtualHosts."netboot.infra" = {
-      listen = [
-        {
-          addr = net.hosts.cluster-router.infra;
-          port = 8080;
-        }
-      ];
-      root = "/var/lib/tftpboot";
-    };
-  };
+  # tftpRoot/tftpbootFiles (defined above, under `let`): serves the RPi4
+  # firmware/U-Boot chain plus Talos kernel/initramfs (dropped manually
+  # under tftpRoot/talos/ on the host) to the infra vlan over dnsmasq's
+  # built-in TFTP server — parked along with netboot above, so the
+  # tmpfiles rules that populate tftpRoot are commented out too.
+  # systemd.tmpfiles.rules = [
+  #   "L+ ${tftpRoot}/start4.elf - - - - ${tftpbootFiles}/start4.elf"
+  #   "L+ ${tftpRoot}/fixup4.dat - - - - ${tftpbootFiles}/fixup4.dat"
+  #   "L+ ${tftpRoot}/bcm2711-rpi-4-b.dtb - - - - ${tftpbootFiles}/bcm2711-rpi-4-b.dtb"
+  #   "L+ ${tftpRoot}/kernel8.img - - - - ${tftpbootFiles}/kernel8.img"
+  #   "L+ ${tftpRoot}/config.txt - - - - ${tftpbootFiles}/config.txt"
+  #   "L+ ${tftpRoot}/pxelinux.cfg - - - - ${tftpbootFiles}/pxelinux.cfg"
+  #   "d ${tftpRoot}/talos 0755 root root -"
+  # ];
 
   services.cluster.haproxy = {
     enable = true;
