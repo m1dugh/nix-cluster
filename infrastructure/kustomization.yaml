@@ -4,5 +4,6 @@ kind: Kustomization
 resources:
   - argocd/application.yaml
   - bootstrap.yaml
+  - gateway-api-crds.yaml
   - nginx-gateway-fabric/application.yaml
 

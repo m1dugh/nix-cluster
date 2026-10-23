@@ -190,13 +190,34 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `values.yaml` from the start avoids this entirely, since the initial
   objects would already carry the labels/port names the chart's own
   Service selectors expect.
+- **`infrastructure/gateway-api-crds.yaml`** is a required prerequisite for
+  `infrastructure/nginx-gateway-fabric/`, and must sync first: the upstream
+  Kubernetes **Gateway API** CRDs (`Gateway`, `GatewayClass`, `HTTPRoute`,
+  etc. — group `gateway.networking.k8s.io`) are a separate project
+  (`kubernetes-sigs/gateway-api`) from NGF itself, and are *not* included
+  in the `nginx-gateway-fabric` chart's own `crds/` directory (that
+  directory only has NGF's own CRDs, e.g. `NginxProxy`,
+  `ClientSettingsPolicy` — group `gateway.nginx.org`). Without them, every
+  sync of `nginx-gateway-fabric` fails outright: ArgoCD can't discover the
+  `gateway.networking.k8s.io/v1` API group to create the `Gateway`/
+  `GatewayClass` resources the chart templates. This is a single-file
+  case-1 layout (no values/extras of its own) pointing straight at NGF's
+  own pinned Kustomize source for the CRDs
+  (`github.com/nginx/nginx-gateway-fabric.git`,
+  `path: config/crd/gateway-api/standard`, tagged to the same
+  `v2.8.0` release as the Helm chart) — the "standard" channel, not
+  "experimental" (NGF docs' recommended default). Ordering is enforced via
+  `argocd.argoproj.io/sync-wave` annotations: `gateway-api-crds` is
+  `"-1"`, `nginx-gateway-fabric` is `"0"`, so the CRDs always land first.
 - `infrastructure/nginx-gateway-fabric/` deploys NGINX Gateway Fabric
   (Kubernetes Gateway API implementation) via its upstream OCI Helm chart
   (`ghcr.io/nginx/charts`, chart `nginx-gateway-fabric`, pinned
-  `targetRevision`), into the `gateway-system` namespace. Like
-  `infrastructure/argocd/`, `application.yaml` uses `spec.sources` with a
-  `ref: values` git source so `helm.valueFiles` can point at
-  `infrastructure/nginx-gateway-fabric/values.yaml` in this repo, and
+  `targetRevision`), into the `gateway-system` namespace — see
+  `infrastructure/gateway-api-crds.yaml` above for its required
+  prerequisite. Like `infrastructure/argocd/`, `application.yaml` uses
+  `spec.sources` with a `ref: values` git source so `helm.valueFiles` can
+  point at `infrastructure/nginx-gateway-fabric/values.yaml` in this
+  repo, and
   `syncOptions` includes `ServerSideApply=true` (the chart's `crds/`
   directory — one per Gateway API extension type NGF defines, e.g.
   `NginxProxy`, `ClientSettingsPolicy` — is large enough that plain
@@ -275,7 +296,20 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   Gateway Fabric with `private-gateway`/`public-gateway` NodePort
   Gateways (30080/31080, http only — TLS not yet implemented, see the
   section above) plus matching `cluster-router` haproxy bindings on
-  `192.168.1.161`/`.162`. Not yet synced/live on the cluster.
+  `192.168.1.161`/`.162`.
+- `infrastructure/gateway-api-crds.yaml` added as a sync-wave-ordered
+  prerequisite for `nginx-gateway-fabric` (the upstream Gateway API CRDs
+  it needs, not bundled in NGF's own chart — see the section above);
+  without it `nginx-gateway-fabric`'s first sync failed outright
+  (`could not find the requested resource` for
+  `gateway.networking.k8s.io/v1`). Also fixed both this app's and
+  `infrastructure/argocd/`'s OCI Helm `repoURL` format — ArgoCD needs it
+  without the `oci://` prefix and without the chart name appended (that
+  combination was initially wrong on `nginx-gateway-fabric`, causing a
+  403 on sync), and switched `argocd` from its classic index-based Helm
+  repo to its OCI chart source since it publishes to both. Verified live:
+  `argocd` syncs cleanly (`Synced`/`Succeeded`); `nginx-gateway-fabric`
+  was still pending the CRDs fix as of this writing.
 - `cluster-router` NixOS configuration implemented under
   `nix/hosts/cluster-router`, covering: vlan-tagged interfaces, ip
   forwarding, nftables firewall, kea DHCP server for the infra vlan, a
