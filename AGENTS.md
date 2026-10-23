@@ -111,14 +111,22 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   not the branch to target).
 - `infrastructure/argocd/` is ArgoCD managing itself: `application.yaml`
   points at the upstream `argo-cd` Helm chart (repo
-  `https://argoproj.github.io/argo-helm`) with `values.yaml` (currently
-  empty) as the override, `targetRevision: "*"` (latest chart version —
-  tighten to a pin once the install stabilizes), synced into the `argocd`
-  namespace with automated sync + self-heal + prune. This Application is
-  included in `infrastructure/kustomization.yaml`'s `resources:`, so once
-  the app-of-apps parent Application (still to be created) reconciles
-  `infrastructure/`, ArgoCD will adopt management of its own Helm
-  deployment (which was installed manually as the initial bootstrap step).
+  `https://argoproj.github.io/argo-helm`) with `values.yaml` as the
+  override, `targetRevision: "*"` (latest chart version — tighten to a pin
+  once the install stabilizes), synced into the `argocd` namespace with
+  automated sync + self-heal + prune, plus `ServerSideApply=true` in
+  `syncOptions` (server-side apply, rather than client-side, for this
+  Application's sync). This Application is included in
+  `infrastructure/kustomization.yaml`'s `resources:`, so once the
+  app-of-apps parent Application reconciles `infrastructure/`, ArgoCD
+  adopts management of its own Helm deployment (which was installed
+  manually as the initial bootstrap step).
+- `infrastructure/argocd/values.yaml` sets `configs.params.server.insecure:
+  true` — this disables TLS on `argocd-server` itself (it serves plain
+  HTTP), since TLS termination is expected to be handled later by an
+  upstream API gateway/ingress in front of it, not by argocd-server
+  directly. Revisit this once that gateway exists and is actually fronting
+  argocd-server.
 
 ## Progress
 
