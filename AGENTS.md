@@ -20,6 +20,13 @@ Current advancement of the project should be stored in the @AGENTS.md file.
 - Do not run `nix build` (or similar) against `cluster-router`'s
   configuration just to validate a change — `colmena apply` will build it
   at deploy time anyway, so a separate local build is redundant busywork.
+- Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+  `<type>[optional scope]: <description>`, e.g. `feat(router): ...` or
+  `fix(dhcp): ...` (matches this repo's existing history). Standard types:
+  `feat`, `fix`, plus `docs`, `style`, `refactor`, `perf`, `test`, `build`,
+  `chore`, `ci` as needed. A breaking change is marked either with `!`
+  right after the type/scope (e.g. `feat(router)!: ...`) or a
+  `BREAKING CHANGE:` footer.
 
 ## Progress
 
