@@ -12,6 +12,11 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   cluster, or any other service made reachable from the home/WAN side —
   the "Published ports" table in @README.md must be updated to list the
   bound address, port, and service.
+- When committing, no mention of Claude or any other coding agent must be
+  added anywhere in the commit — not in the commit message/name, nor in
+  its description (e.g. no `Co-Authored-By` lines referencing an agent).
+  The same applies to branch names, tag names, and any other git-related
+  entity (PR titles/descriptions, etc.).
 
 ## Progress
 
