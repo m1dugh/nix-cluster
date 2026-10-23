@@ -9,18 +9,21 @@ let
     {
       remotePort = 6443;
       localPort = 6443;
+      interface = "vlan-infra";
     }
-    # nginx-gateway-fabric NodePorts (http only for now; https NodePorts
-    # are added once cert-manager + TLS listeners exist, see AGENTS.md).
+    # nginx-gateway-fabric: standard 80/443 externally, forwarded to each
+    # gateway's NodePort on the backend nodes (http only for now; 443
+    # entries are added once cert-manager + TLS listeners exist, see
+    # AGENTS.md).
     {
       remotePort = 30080;
-      localPort = 30080;
+      localPort = 80;
       address = "192.168.1.161"; # private-gateway
       interface = "vlan-wan";
     }
     {
       remotePort = 31080;
-      localPort = 31080;
+      localPort = 80;
       address = "192.168.1.162"; # public-gateway
       interface = "vlan-wan";
     }
@@ -197,12 +200,25 @@ in
             iifname "vlan-wan" udp dport 51820 accept
             iifname "wg0" accept
 
-            # haproxy itself listens on the router (vlan-infra address), so
-            # traffic to its published ports terminates here rather than
-            # being forwarded -- see wanPublishedPorts above.
-            ${lib.concatMapStringsSep "\n            " (
-              p: ''iifname "vlan-wan" tcp dport ${toString p.localPort} accept''
-            ) wanPublishedPorts}
+            # haproxy itself listens on the router (on whichever interface
+            # each port's `interface` names -- see wanPublishedPorts
+            # above), so traffic to its published ports terminates here
+            # rather than being forwarded. Rules are generated per
+            # (interface, localPort) pair actually in use, deduplicated,
+            # and grouped by interface -- not hardcoded to vlan-wan, since
+            # different wanPublishedPorts entries can publish on different
+            # interfaces. vlan-infra is skipped: it's already fully
+            # trusted above, so a port with no explicit `interface`
+            # override (defaulting to `cfg.interface`, vlan-infra for this
+            # host) needs no extra rule here.
+            ${lib.concatStringsSep "\n            " (
+              lib.mapAttrsToList (
+                interface: ports:
+                lib.concatMapStringsSep "\n            " (
+                  localPort: ''iifname "${interface}" tcp dport ${toString localPort} accept''
+                ) (lib.unique (map (p: p.localPort) ports))
+              ) (lib.removeAttrs (lib.groupBy (p: p.interface) wanPublishedPorts) [ "vlan-infra" ])
+            )}
           }
 
           chain forward {

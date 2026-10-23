@@ -33,6 +33,15 @@ Current advancement of the project should be stored in the @AGENTS.md file.
 - Do not run `nix build` (or similar) against `cluster-router`'s
   configuration just to validate a change — `colmena apply` will build it
   at deploy time anyway, so a separate local build is redundant busywork.
+- **After any `colmena apply` that touches `services.cluster.haproxy` /
+  `nix/modules/loadbalancer/haproxy.nix` content, manually run `systemctl
+  reload haproxy.service` on `cluster-router`.** Confirmed during testing:
+  colmena correctly activates the new `/etc/haproxy.cfg` (the symlink
+  target does change), but haproxy's systemd unit definition itself never
+  changes between config edits, so NixOS's activation script does not
+  restart/reload the service automatically — the old config keeps running
+  (and the new one's ports, e.g. a newly added `localPort`, won't actually
+  be listening) until reloaded by hand.
 - Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
   `<type>[optional scope]: <description>`, e.g. `feat(router): ...` or
   `fix(dhcp): ...` (matches this repo's existing history). Standard types:
@@ -275,24 +284,50 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     `gateway-system` via `parentRefs[].namespace`.
   - `cluster-router` forwards to these NodePorts via haproxy: `let`-block
     `haproxyPorts` in `nix/hosts/cluster-router/default.nix` gains two
-    entries binding `192.168.1.161:30080` (private) and
-    `192.168.1.162:31080` (public) on `vlan-wan`, each load-balanced
-    across all 3 k8s nodes (NodePort services are reachable from any
-    node) to the matching remote NodePort — same pattern as the existing
-    `6443` (Kubernetes API) entry. Per the standing instruction on
-    `wanPublishedPorts`, both are included by default (not excluded), so
-    they're reachable from `vlan-wan` like every other haproxy-published
-    port; see README's "Published ports" table.
-  - This required extending `nix/modules/loadbalancer/haproxy.nix`: it
-    previously bound every port's `address` onto one shared
-    `cfg.interface` (fine while the only haproxy-published port, `6443`,
-    binds on `vlan-infra` with `address = null`), but `192.168.1.161`/
+    entries binding `192.168.1.161:80` (private) and `192.168.1.162:80`
+    (public) on `vlan-wan` — **the standard `80` (and later `443`)
+    port externally; `remotePort` (`30080`/`31080`) is the NodePort haproxy
+    forwards to on the backend, kept distinct from the shared `localPort`
+    that's actually exposed.** Each is load-balanced across all 3 k8s
+    nodes (NodePort services are reachable from any node) — same pattern
+    as the existing `6443` (Kubernetes API) entry. Per the standing
+    instruction on `wanPublishedPorts`, both are included by default (not
+    excluded), so they're reachable from `vlan-wan` like every other
+    haproxy-published port; see README's "Published ports" table.
+  - This required extending `nix/modules/loadbalancer/haproxy.nix` twice:
+    first, a per-port `interface` option (defaulting to `cfg.interface`,
+    so the existing `6443` entry is unaffected) since `192.168.1.161`/
     `.162` belong to `vlan-wan`, a different interface than
-    `cluster-router`'s `services.cluster.haproxy.interface = "vlan-infra"`.
-    Added a per-port `interface` option (defaulting to `cfg.interface`,
-    so the existing `6443` entry is unaffected) and grouped
-    `networking.interfaces.<iface>.ipv4.addresses` by that per-port
-    interface instead of assuming a single one.
+    `cluster-router`'s `services.cluster.haproxy.interface = "vlan-infra"`
+    — `networking.interfaces.<iface>.ipv4.addresses` is grouped by that
+    per-port interface instead of assuming a single one. Second, once
+    both gateways needed to share `localPort = 80` (binding the same port
+    on two different `vlan-wan` addresses), `mkFrontend`'s frontend/backend
+    naming had to switch from being keyed on `localPort` alone
+    (`fe-80`/`be-80`, which would collide between the two entries) to
+    `(address, localPort)` (e.g. `fe-192-168-1-161-80`).
+  - **The nftables `input`-chain accept-rule generation for
+    `wanPublishedPorts` must never hardcode `"vlan-wan"`** as the interface
+    — each `haproxyPorts` entry carries its own `interface` (not always
+    `vlan-wan`), so the rule-generation groups entries by their actual
+    `interface` (via `lib.groupBy`) and emits an `iifname "<interface>"`
+    rule per group/port, skipping `vlan-infra` (already fully trusted via
+    its own `accept` rule, so it needs no explicit per-port rule). This
+    was a real bug caught during review: the first version of this code
+    iterated `wanPublishedPorts` directly with a literal `"vlan-wan"`
+    string baked into the generated rule, silently ignoring each port's
+    real `interface` value.
+  - A related, separate bug this surfaced: `haproxyPorts`/`wanPublishedPorts`
+    are a **plain Nix list literal** in this file's `let` block, not the
+    actual `config.services.cluster.haproxy.ports` option value — so an
+    entry with no explicit `interface` key (like `6443` originally) has no
+    `interface` attribute at all here, unlike the real option, where
+    submodule type-checking would apply `cfg.interface`'s default. Code
+    that reads `p.interface` directly off `haproxyPorts`/`wanPublishedPorts`
+    (as the nftables generation does) requires every entry to set
+    `interface` explicitly — relying on the option system's default here
+    would silently crash on missing-attribute instead. `6443`'s entry now
+    sets `interface = "vlan-infra";` explicitly for this reason.
 
 ## Progress
 

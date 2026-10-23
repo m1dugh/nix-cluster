@@ -27,8 +27,8 @@ published on `cluster-router`.
 | 192.168.1.145 | 51820/udp | WireGuard VPN |
 | 192.168.2.0/24 (vlan-infra) | 50000/tcp | Talos apid (talosctl management API), forwarded from `vlan-wan` |
 | 192.168.2.1 (vlan-infra, haproxy) | 6443/tcp | Kubernetes API, forwarded from `vlan-wan` to haproxy |
-| 192.168.1.161 (vlan-wan, haproxy) | 30080/tcp | nginx-gateway-fabric `private-gateway` HTTP, forwarded to its NodePort |
-| 192.168.1.162 (vlan-wan, haproxy) | 31080/tcp | nginx-gateway-fabric `public-gateway` HTTP, forwarded to its NodePort |
+| 192.168.1.161 (vlan-wan, haproxy) | 80/tcp | nginx-gateway-fabric `private-gateway` HTTP, forwarded to its NodePort (30080) |
+| 192.168.1.162 (vlan-wan, haproxy) | 80/tcp | nginx-gateway-fabric `public-gateway` HTTP, forwarded to its NodePort (31080) |
 
 ### Hosts
 

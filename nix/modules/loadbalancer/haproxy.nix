@@ -11,13 +11,17 @@ let
     }:
     let
       bindAddress = if address == null then "*" else address;
+      # Frontends/backends are keyed on (address, localPort), not just
+      # localPort: different addresses can reuse the same localPort (e.g.
+      # two publish addresses both on port 80).
+      id = "${lib.replaceStrings [ "." ":" "*" ] [ "-" "-" "any" ] bindAddress}-${toString localPort}";
     in
     ''
-      frontend fe-${toString localPort}
+      frontend fe-${id}
         bind ${bindAddress}:${toString localPort}
-        default_backend be-${toString localPort}
+        default_backend be-${id}
 
-      backend be-${toString localPort}
+      backend be-${id}
         balance roundrobin
       ${lib.concatMapStringsSep "\n" (
         node: "    server ${node} ${node}:${toString remotePort} check"
