@@ -311,23 +311,38 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     — each `haproxyPorts` entry carries its own `interface` (not always
     `vlan-wan`), so the rule-generation groups entries by their actual
     `interface` (via `lib.groupBy`) and emits an `iifname "<interface>"`
-    rule per group/port, skipping `vlan-infra` (already fully trusted via
-    its own `accept` rule, so it needs no explicit per-port rule). This
-    was a real bug caught during review: the first version of this code
-    iterated `wanPublishedPorts` directly with a literal `"vlan-wan"`
-    string baked into the generated rule, silently ignoring each port's
-    real `interface` value.
+    rule per group/port. Every published port gets its own explicit rule
+    regardless of interface — including `vlan-infra` entries (e.g. `6443`),
+    even though `vlan-infra` is also covered by the earlier blanket
+    `iifname "vlan-infra" accept` rule: a published port must not rely
+    implicitly on a different, broader rule to stay reachable. This was a
+    real bug caught during review: the first version of this code iterated
+    `wanPublishedPorts` directly with a literal `"vlan-wan"` string baked
+    into the generated rule (silently ignoring each port's real
+    `interface`), and a later version dropped `vlan-infra` entries from
+    this generation entirely on the (wrong) assumption the blanket rule
+    made their own rule redundant.
+  - **Each rule is also scoped to its specific publish `address` when one
+    is set**, not just the interface: `ip daddr <address> tcp dport <port>
+    accept`, rather than accepting that port from any address on the
+    interface. A port with `address = null` (binds every address on the
+    interface, e.g. `6443`) falls back to the wider `iifname "<interface>"
+    tcp dport <port> accept`, since there's no single address to scope to.
+    Live-verified: `nft list ruleset` on `cluster-router` shows
+    `iifname "vlan-wan" ip daddr 192.168.1.161 tcp dport 80 accept` and
+    the equivalent for `.162`, each independent of the other.
   - A related, separate bug this surfaced: `haproxyPorts`/`wanPublishedPorts`
     are a **plain Nix list literal** in this file's `let` block, not the
     actual `config.services.cluster.haproxy.ports` option value — so an
-    entry with no explicit `interface` key (like `6443` originally) has no
-    `interface` attribute at all here, unlike the real option, where
-    submodule type-checking would apply `cfg.interface`'s default. Code
-    that reads `p.interface` directly off `haproxyPorts`/`wanPublishedPorts`
-    (as the nftables generation does) requires every entry to set
-    `interface` explicitly — relying on the option system's default here
-    would silently crash on missing-attribute instead. `6443`'s entry now
-    sets `interface = "vlan-infra";` explicitly for this reason.
+    entry with no explicit `address`/`interface` key (like `6443`) has no
+    such attribute at all here, unlike the real option, where submodule
+    type-checking would apply `cfg.interface`'s default. Fixed at the
+    root rather than patching every field forever: a `normalizePort`
+    helper (`p: { address = p.address or null; interface = p.interface or
+    "vlan-infra"; } // p`) is mapped over `haproxyPorts` once, so
+    individual entries can keep omitting fields they don't need — same
+    ergonomics as the real option would give, without requiring the
+    option system.
 
 ## Progress
 

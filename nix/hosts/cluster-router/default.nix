@@ -5,11 +5,22 @@ let
   # is also reachable from vlan-wan (the nftables input chain below
   # generates an accept rule per localPort, since haproxy listens on the
   # router itself) unless explicitly excluded from `wanPublishedPorts`.
-  haproxyPorts = [
+  #
+  # `address`/`interface` may be omitted on an entry below (not just set
+  # to null/a value) -- normalizePort (used wherever these fields are
+  # read, e.g. the nftables ruleset) treats a missing attribute the same
+  # as `address = null` / `interface = "vlan-infra"`, so entries that
+  # don't need these fields can skip them entirely, same as the real
+  # services.cluster.haproxy.ports option would default them.
+  normalizePort = p: {
+    address = p.address or null;
+    interface = p.interface or "vlan-infra";
+  } // p;
+
+  haproxyPorts = map normalizePort [
     {
       remotePort = 6443;
       localPort = 6443;
-      interface = "vlan-infra";
     }
     # nginx-gateway-fabric: standard 80/443 externally, forwarded to each
     # gateway's NodePort on the backend nodes (http only for now; 443
@@ -203,21 +214,31 @@ in
             # haproxy itself listens on the router (on whichever interface
             # each port's `interface` names -- see wanPublishedPorts
             # above), so traffic to its published ports terminates here
-            # rather than being forwarded. Rules are generated per
-            # (interface, localPort) pair actually in use, deduplicated,
-            # and grouped by interface -- not hardcoded to vlan-wan, since
+            # rather than being forwarded. Rules are scoped as tightly as
+            # possible: a port with an explicit publish `address` is only
+            # accepted for that address (`ip daddr <address> tcp dport
+            # <port> accept`), not every address on the interface; a port
+            # with `address = null` (binds all addresses on the interface)
+            # falls back to the wider `iifname "<interface>" tcp dport
+            # <port> accept`. Grouped by interface and deduplicated by
+            # (address, localPort) -- not hardcoded to vlan-wan, since
             # different wanPublishedPorts entries can publish on different
-            # interfaces. vlan-infra is skipped: it's already fully
-            # trusted above, so a port with no explicit `interface`
-            # override (defaulting to `cfg.interface`, vlan-infra for this
-            # host) needs no extra rule here.
+            # interfaces. Every published port gets its own explicit rule
+            # here regardless of interface (including vlan-infra, even
+            # though it's also covered by the blanket `iifname "vlan-infra"
+            # accept` above) -- published ports must not rely implicitly
+            # on a different, broader rule to stay reachable.
             ${lib.concatStringsSep "\n            " (
               lib.mapAttrsToList (
                 interface: ports:
                 lib.concatMapStringsSep "\n            " (
-                  localPort: ''iifname "${interface}" tcp dport ${toString localPort} accept''
-                ) (lib.unique (map (p: p.localPort) ports))
-              ) (lib.removeAttrs (lib.groupBy (p: p.interface) wanPublishedPorts) [ "vlan-infra" ])
+                  p:
+                  if p.address == null then
+                    ''iifname "${interface}" tcp dport ${toString p.localPort} accept''
+                  else
+                    ''iifname "${interface}" ip daddr ${p.address} tcp dport ${toString p.localPort} accept''
+                ) (lib.unique (map (p: { inherit (p) address localPort; }) ports))
+              ) (lib.groupBy (p: p.interface) wanPublishedPorts)
             )}
           }
 
