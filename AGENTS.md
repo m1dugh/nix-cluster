@@ -485,6 +485,11 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   uninitialized after first sync — `vault operator init` /
   `vault operator unseal` against the pod is a manual, one-time step, not
   managed by this repo.
+- `infrastructure/vault/values.yaml` gained an `HTTPRoute` (via
+  `extraObjects`, same pattern as `infrastructure/argocd/values.yaml`)
+  exposing the Vault UI/API at `vault.int.midugh.fr` through
+  `private-gateway`, http only, forwarding to the chart's `vault` Service
+  on port `8200`.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
