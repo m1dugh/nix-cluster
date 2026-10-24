@@ -469,6 +469,22 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   fully removed (not just disabled) in favor of dnsmasq, which has native
   PXE support more in line with a home-lab-scale setup — see README's
   "Technical stack" section.
+- `infrastructure/vault/` added (case 2: subfolder, `application.yaml` +
+  `values.yaml` — 4 overridden values crosses the inline-values
+  threshold) deploying HashiCorp Vault Community Edition via its upstream
+  classic index Helm repo (`https://helm.releases.hashicorp.com` — Vault
+  has no OCI chart, unlike `argocd`/`nginx-gateway-fabric`), pinned
+  `targetRevision: 0.34.1` (app version 2.0.4), into the `vault-system`
+  namespace. Single replica standalone mode (the chart's own default —
+  `server.ha.enabled` stays `false`), `server.dataStorage.size: 8Gi` and
+  `server.dataStorage.storageClass: longhorn` (explicit rather than
+  relying on Longhorn being the cluster's implicit default
+  StorageClass), `injector.enabled: false` (no vault-agent sidecar
+  injection needed for this single-instance use case). Wired into
+  `infrastructure/kustomization.yaml`. Vault starts sealed and
+  uninitialized after first sync — `vault operator init` /
+  `vault operator unseal` against the pod is a manual, one-time step, not
+  managed by this repo.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

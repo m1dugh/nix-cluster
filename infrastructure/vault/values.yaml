@@ -1,0 +1,15 @@
+# Single replica (standalone mode, server.ha stays disabled - the chart
+# default), backed by Longhorn storage instead of the chart's unset
+# default storage class.
+#
+# Vault starts sealed and uninitialized after first deploy; unsealing and
+# root token generation (`vault operator init` / `vault operator unseal`)
+# is a manual, one-time step against the pod, not managed by this repo.
+
+injector:
+  enabled: false
+
+server:
+  dataStorage:
+    size: 8Gi
+    storageClass: longhorn

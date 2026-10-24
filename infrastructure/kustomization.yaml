@@ -8,4 +8,5 @@ resources:
   - longhorn/application.yaml
   - metrics-server.yaml
   - nginx-gateway-fabric/application.yaml
+  - vault/application.yaml
 
