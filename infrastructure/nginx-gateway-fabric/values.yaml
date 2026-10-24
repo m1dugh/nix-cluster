@@ -68,6 +68,7 @@ extraObjects:
       kubernetes:
         service:
           type: NodePort
+          externalTrafficPolicy: Cluster
           nodePorts:
             - listenerPort: 80
               port: 30080
@@ -82,6 +83,7 @@ extraObjects:
       kubernetes:
         service:
           type: NodePort
+          externalTrafficPolicy: Cluster
           nodePorts:
             - listenerPort: 80
               port: 31080

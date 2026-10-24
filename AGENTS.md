@@ -306,6 +306,18 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     `nginx-gateway-fabric`'s `"0"`, so the `ClusterIssuer` and
     gateway-shim are live before the Gateways request certificates from
     them.
+  - **Both `NginxProxy` objects set `spec.kubernetes.service.externalTrafficPolicy:
+    Cluster`**, overriding NGF's own default of `Local` for that field.
+    `Local` only opens/answers the NodePort on nodes that actually have a
+    running NGF pod (kube-proxy skips the extra hop to preserve client
+    source IP) — this broke `cluster-router`'s haproxy setup, which
+    load-balances each gateway's NodePort across all 3 k8s nodes assuming
+    any of them can answer (same assumption the Kubernetes API's `6443`
+    haproxy entry already relies on). `Cluster` restores the normal
+    every-node-answers NodePort behavior at the cost of losing the
+    original client source IP on the backend (nginx sees the node's
+    internal IP instead) — acceptable here since nothing in this cluster
+    currently depends on source IP preservation.
   - **Each gateway has a default http->https redirect**:
     `private-gateway-https-redirect` / `public-gateway-https-redirect`
     (`gateway-system` namespace, added via the chart's `extraObjects`,
