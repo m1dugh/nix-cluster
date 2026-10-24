@@ -1,5 +1,7 @@
 gateways:
   - name: private-gateway
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
     spec:
       gatewayClassName: nginx
       infrastructure:
@@ -7,8 +9,6 @@ gateways:
           group: gateway.nginx.org
           kind: NginxProxy
           name: private-gateway-proxy-config
-        annotations:
-          cert-manager.io/cluster-issuer: letsencrypt-cloudflare
       listeners:
         - name: http
           port: 80
@@ -29,6 +29,8 @@ gateways:
             namespaces:
               from: All
   - name: public-gateway
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
     spec:
       gatewayClassName: nginx
       infrastructure:
@@ -36,8 +38,6 @@ gateways:
           group: gateway.nginx.org
           kind: NginxProxy
           name: public-gateway-proxy-config
-        annotations:
-          cert-manager.io/cluster-issuer: letsencrypt-cloudflare
       listeners:
         - name: http
           port: 80

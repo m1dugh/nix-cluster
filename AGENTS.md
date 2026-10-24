@@ -269,10 +269,19 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     `config.enableGatewayAPI: true` (off by default in the chart — RBAC for
     the `gateway.networking.k8s.io` group is already unconditional in the
     chart's ClusterRole, only the gateway-shim controller itself needs this
-    flag). Each Gateway's `spec.infrastructure.annotations` carries
-    `cert-manager.io/cluster-issuer: letsencrypt-cloudflare`; cert-manager
-    watches for that annotation and auto-creates/manages a `Certificate`
-    per listener's `tls.certificateRefs` Secret — no manual `Certificate`
+    flag). Each Gateway's own `metadata.annotations` (**not**
+    `spec.infrastructure.annotations` — that field only propagates to
+    NGF's generated Service/Deployment and is invisible to cert-manager;
+    getting this wrong the first time around is why no `Certificate` was
+    ever created despite gateway-shim running and the Gateways looking
+    otherwise correct) carries `cert-manager.io/cluster-issuer:
+    letsencrypt-cloudflare`. In this chart, a `gateways[]` entry's
+    `annotations` key is a **sibling of `spec`**, not nested inside it
+    (see `infrastructure/nginx-gateway-fabric/values.yaml` — the chart's
+    `templates/gateway.yaml` renders `.annotations` straight onto
+    `metadata.annotations`, same level as `.name`). cert-manager watches
+    for that annotation and auto-creates/manages a `Certificate` per
+    listener's `tls.certificateRefs` Secret — no manual `Certificate`
     manifest needed. `private-gateway`'s `https` listener is
     `hostname: "*.int.midugh.fr"` -> Secret `private-gateway-tls`;
     `public-gateway`'s is `hostname: "*.midugh.fr"` -> Secret
