@@ -21,4 +21,4 @@ server:
     parentRefs:
       - name: private-gateway
         namespace: gateway-system
-        sectionName: http
+        sectionName: https

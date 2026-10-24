@@ -17,7 +17,7 @@ extraObjects:
       parentRefs:
         - name: private-gateway
           namespace: gateway-system
-          sectionName: http
+          sectionName: https
       hostnames:
         - argocd.int.midugh.fr
       rules:

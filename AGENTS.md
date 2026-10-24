@@ -185,11 +185,13 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   ingress/gateway access patterns are defined and explicit allow rules can
   be scoped instead of disabling the policies outright.
 - `infrastructure/argocd/values.yaml`'s `extraObjects` adds an `HTTPRoute`
-  (`argocd` namespace) attaching to `private-gateway`'s `http` listener
+  (`argocd` namespace) attaching to `private-gateway`'s `https` listener
   (see the nginx-gateway-fabric section below for the hostname
-  convention), hostname `argocd.int.midugh.fr`, forwarding to
-  `argocd-server`'s `http`/80 port — http only for now, same as every
-  other route until TLS exists.
+  convention and the TLS setup), hostname `argocd.int.midugh.fr`,
+  forwarding to `argocd-server`'s `http`/80 port — TLS is terminated at
+  the gateway, so the route's backend stays plain HTTP even though the
+  listener it attaches to is `https` (matches
+  `configs.params.server.insecure: true` on `argocd-server` itself).
 - **ArgoCD's own initial bootstrap install must be done with `helm
   install`/`helm template`, not a raw manifest install (e.g. the upstream
   `install.yaml`).** This repo's first manual bootstrap used a raw
