@@ -533,6 +533,48 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   needs a different provider/mount. New apps under `infrastructure/`
   needing secrets should assume `vault-infra` (backed by Vault's `infra/`
   KV v2 mount) rather than introducing another `ClusterSecretStore`.
+- `infrastructure/cert-manager/` added (case 3: subfolder,
+  `application.yaml` + `values.yaml` + `kustomization.yaml` listing two
+  extra manifests) deploying cert-manager via its upstream OCI Helm chart
+  (`quay.io/jetstack/charts`, chart `cert-manager`, pinned
+  `targetRevision: v1.18.2`), into the `cert-manager-system` namespace,
+  with `crds.enabled: true` (the chart's own CRD install toggle, replacing
+  the older separate-manifest install method). Same `spec.sources`
+  3-entry pattern as `infrastructure/external-secrets/` (Helm chart + the
+  `ref: values` git source + this same path as a Kustomize source for the
+  extra manifests below).
+  - `infrastructure/cert-manager/externalsecret.yaml` defines
+    `ExternalSecret/cloudflare-api-token` (namespace
+    `cert-manager-system`, `argocd.argoproj.io/sync-wave: "1"`) pulling
+    from `ClusterSecretStore/vault-infra` at Vault path
+    `cert-manager/cloudflare`, property `token`, materialized as plain
+    Secret `cloudflare-api-token-secret` (key `api-token`) — the
+    corresponding Vault-side KV write at `infra/cert-manager/cloudflare`
+    (key `token`) is a manual, one-time step against the Vault pod, same
+    category as the other Vault bootstrap steps already noted above.
+  - `infrastructure/cert-manager/clusterissuer.yaml` defines
+    `ClusterIssuer/letsencrypt-cloudflare` (cluster-scoped,
+    `argocd.argoproj.io/sync-wave: "2"`, so it syncs after the Secret
+    above exists), ACME **production** server only (no staging issuer —
+    deliberately kept to one issuer, same single-issuer pattern used
+    elsewhere in this repo), DNS-01 via the `cloudflare` solver
+    referencing `cloudflare-api-token-secret`/`api-token`, scoped to
+    `dnsZones: [midugh.fr]`.
+  - The sync-wave ordering here (`0` implicit for the Helm release itself,
+    `1` for the ExternalSecret, `2` for the ClusterIssuer) is intra-
+    Application — unlike `gateway-api-crds` vs `nginx-gateway-fabric`,
+    which are two separate Applications ordered via the same annotation,
+    cert-manager's CRDs/controller, the ExternalSecret, and the
+    ClusterIssuer are all one `Application`/one sync, so the ordering
+    only needs to guarantee the Secret exists before the ClusterIssuer
+    references it (and both after cert-manager's own CRDs are installed,
+    which Argo CD handles by syncing CRDs before other manifests
+    regardless of wave).
+- No `HTTPRoute`/Gateway TLS listener wiring yet — this app only gets
+  cert-manager + the ClusterIssuer issuing certs; attaching `https`
+  listeners on `private-gateway`/`public-gateway` (and the
+  `certificateRefs`/`Certificate` resources those need) is follow-up work,
+  noted as pending in the nginx-gateway-fabric section above.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
