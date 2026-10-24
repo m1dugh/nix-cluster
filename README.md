@@ -29,6 +29,8 @@ published on `cluster-router`.
 | 192.168.1.145 (vlan-wan, haproxy) | 6443/tcp | Kubernetes API |
 | 192.168.1.161 (vlan-wan, haproxy) | 80/tcp | nginx-gateway-fabric `private-gateway` HTTP, forwarded to its NodePort (30080) |
 | 192.168.1.162 (vlan-wan, haproxy) | 80/tcp | nginx-gateway-fabric `public-gateway` HTTP, forwarded to its NodePort (31080) |
+| 192.168.1.161 (vlan-wan, haproxy) | 443/tcp | nginx-gateway-fabric `private-gateway` HTTPS (`*.int.midugh.fr`), forwarded to its NodePort (30443) |
+| 192.168.1.162 (vlan-wan, haproxy) | 443/tcp | nginx-gateway-fabric `public-gateway` HTTPS (`*.midugh.fr`), forwarded to its NodePort (31443) |
 
 ### Hosts
 

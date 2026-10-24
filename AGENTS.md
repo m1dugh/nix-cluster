@@ -261,16 +261,43 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     objects are added via the chart's `extraObjects` values list (there is
     no dedicated values key for "extra NginxProxy per gateway").
   - Current node ports: `private-gateway` listener `http`/80 ->
-    NodePort 30080; `public-gateway` listener `http`/80 -> NodePort 31080.
-  - **TLS is not implemented yet.** Neither Gateway has an `https`
-    listener, and the 443-NodePort slots (30443/`private-gateway`,
-    31443/`public-gateway`) are left as comments in
-    `infrastructure/nginx-gateway-fabric/values.yaml` rather than real
-    `nodePorts` entries, since a `NodePort` with no matching Gateway
-    listener port is simply ignored by NGF. Add the `https` listeners (TLS
-    `mode: Terminate` + `certificateRefs`) and the corresponding
-    `nodePorts` entries together, once cert-manager is installed and can
-    issue the certificates those listeners would reference.
+    NodePort 30080, `https`/443 -> NodePort 30443; `public-gateway`
+    listener `http`/80 -> NodePort 31080, `https`/443 -> NodePort 31443.
+  - **TLS is implemented via cert-manager's Gateway API support
+    (gateway-shim), not hand-written `Certificate` resources.**
+    `infrastructure/cert-manager/values.yaml` sets
+    `config.enableGatewayAPI: true` (off by default in the chart — RBAC for
+    the `gateway.networking.k8s.io` group is already unconditional in the
+    chart's ClusterRole, only the gateway-shim controller itself needs this
+    flag). Each Gateway's `spec.infrastructure.annotations` carries
+    `cert-manager.io/cluster-issuer: letsencrypt-cloudflare`; cert-manager
+    watches for that annotation and auto-creates/manages a `Certificate`
+    per listener's `tls.certificateRefs` Secret — no manual `Certificate`
+    manifest needed. `private-gateway`'s `https` listener is
+    `hostname: "*.int.midugh.fr"` -> Secret `private-gateway-tls`;
+    `public-gateway`'s is `hostname: "*.midugh.fr"` -> Secret
+    `public-gateway-tls`. Both wildcards are issued via the same DNS-01
+    Cloudflare solver as `infrastructure/cert-manager/clusterissuer.yaml`
+    (see that section above) — DNS-01 is required here since wildcard certs
+    can't use HTTP-01. `cert-manager`'s own Application
+    (`infrastructure/cert-manager/application.yaml`) carries
+    `argocd.argoproj.io/sync-wave: "-1"`, ahead of
+    `nginx-gateway-fabric`'s `"0"`, so the `ClusterIssuer` and
+    gateway-shim are live before the Gateways request certificates from
+    them.
+  - **Each gateway has a default http->https redirect**:
+    `private-gateway-https-redirect` / `public-gateway-https-redirect`
+    (`gateway-system` namespace, added via the chart's `extraObjects`,
+    same as the `NginxProxy` objects). Each is an `HTTPRoute` attaching
+    only to its own gateway's `http` listener (`sectionName: http`), with
+    no `hostnames` (so it catch-all matches every hostname on that
+    listener) and a single `RequestRedirect` filter
+    (`scheme: https`, `statusCode: 301`). Per Gateway API's route
+    precedence rules, a route with an explicit `hostnames` list (e.g.
+    `argocd`'s, scoped to `argocd.int.midugh.fr`) always wins over a
+    hostname-less route regardless of creation order, so these two
+    redirects only fire for requests that don't match any more specific
+    service route — they don't need their own precedence tuning.
   - There is no "default gateway" concept in Gateway API (unlike
     `StorageClass`'s default annotation) — every `HTTPRoute` must name its
     `parentRefs` explicitly, so `private-gateway` vs `public-gateway` is
@@ -570,11 +597,10 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     references it (and both after cert-manager's own CRDs are installed,
     which Argo CD handles by syncing CRDs before other manifests
     regardless of wave).
-- No `HTTPRoute`/Gateway TLS listener wiring yet — this app only gets
-  cert-manager + the ClusterIssuer issuing certs; attaching `https`
-  listeners on `private-gateway`/`public-gateway` (and the
-  `certificateRefs`/`Certificate` resources those need) is follow-up work,
-  noted as pending in the nginx-gateway-fabric section above.
+- The `https` listeners on `private-gateway`/`public-gateway` (wildcard
+  TLS via this ClusterIssuer, no hand-written `Certificate` resources —
+  cert-manager's gateway-shim manages them from the Gateways' own
+  annotations) are documented in the nginx-gateway-fabric section above.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

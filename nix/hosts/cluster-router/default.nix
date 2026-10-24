@@ -27,9 +27,7 @@ let
       interface = "vlan-wan";
     }
     # nginx-gateway-fabric: standard 80/443 externally, forwarded to each
-    # gateway's NodePort on the backend nodes (http only for now; 443
-    # entries are added once cert-manager + TLS listeners exist, see
-    # AGENTS.md).
+    # gateway's NodePort on the backend nodes.
     {
       remotePort = 30080;
       localPort = 80;
@@ -39,6 +37,18 @@ let
     {
       remotePort = 31080;
       localPort = 80;
+      address = "192.168.1.162"; # public-gateway
+      interface = "vlan-wan";
+    }
+    {
+      remotePort = 30443;
+      localPort = 443;
+      address = "192.168.1.161"; # private-gateway
+      interface = "vlan-wan";
+    }
+    {
+      remotePort = 31443;
+      localPort = 443;
       address = "192.168.1.162"; # public-gateway
       interface = "vlan-wan";
     }
