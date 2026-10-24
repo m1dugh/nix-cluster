@@ -51,6 +51,10 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   `chore`, `ci` as needed. A breaking change is marked either with `!`
   right after the type/scope (e.g. `feat(router)!: ...`) or a
   `BREAKING CHANGE:` footer.
+- Amending a commit is **never** the solution to a mistake found after the
+  fact — unless the user **explicitly** told you to amend. If a previous
+  commit (pushed or not) turns out to be wrong, incomplete, or needs
+  fixing, create a new commit with the fix rather than rewriting history.
 - Everything related to what is deployed on the kubernetes cluster —
   ArgoCD `Application` manifests, the app-of-apps/bootstrap manifest, Helm
   values overrides, any plain Kubernetes manifests — must live under the
