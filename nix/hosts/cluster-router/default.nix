@@ -356,6 +356,12 @@ in
   #   "d ${tftpRoot}/talos 0755 root root -"
   # ];
 
+  services.prometheus.exporters.node = {
+    enable = true;
+    listenAddress = net.hosts.cluster-router.infra;
+    port = 9100;
+  };
+
   services.cluster.haproxy = {
     enable = true;
     interface = "vlan-infra";
