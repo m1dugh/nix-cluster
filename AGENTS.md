@@ -526,6 +526,13 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   granting read on the `infra/` KV mount) is a manual, one-time step
   against the Vault pod, not managed by this repo — same category as
   `vault operator init`/`unseal`.
+- `ClusterSecretStore/vault-infra` is the default/standard
+  `ClusterSecretStore` to reference (`spec.secretStoreRef.name:
+  vault-infra`, `kind: ClusterSecretStore`) whenever an `ExternalSecret`
+  is requested anywhere in the cluster, unless a given secret explicitly
+  needs a different provider/mount. New apps under `infrastructure/`
+  needing secrets should assume `vault-infra` (backed by Vault's `infra/`
+  KV v2 mount) rather than introducing another `ClusterSecretStore`.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
