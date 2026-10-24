@@ -1,5 +1,8 @@
 # Nix Cluster
 
+`CLAUDE.md` in this repo is a symlink to this file (`AGENTS.md`) — they are
+the same file, not two separate documents to keep in sync.
+
 All the technical details are stored in @README.md . Any change in technical
 detail **must be stored** in this file.
 
@@ -61,6 +64,13 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   `infrastructure/` folder. Nothing cluster-deployment-related belongs at
   the repo root or elsewhere (`bootstrap.yaml` itself lives at
   `infrastructure/bootstrap.yaml`, not the repo root, for this reason).
+- Every `HTTPRoute` (whether hand-written or generated via a chart's own
+  values, e.g. Vault's `server.httproute` / Longhorn's `httproute`) must
+  bind to a Gateway's `https` listener (`sectionName: https`) by default,
+  not `http` — unless a given route is explicitly specified otherwise.
+  TLS terminates at the gateway, so this only affects which listener the
+  route attaches to, not the route's backend protocol (stays plain HTTP
+  against the in-cluster service either way).
 
 ## ArgoCD / cluster infrastructure (app of apps)
 
@@ -612,6 +622,32 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   TLS via this ClusterIssuer, no hand-written `Certificate` resources —
   cert-manager's gateway-shim manages them from the Gateways' own
   annotations) are documented in the nginx-gateway-fabric section above.
+- Bug caught live: the `cert-manager.io/cluster-issuer` annotation was
+  first placed under each gateway entry's `spec.infrastructure.annotations`
+  in `infrastructure/nginx-gateway-fabric/values.yaml` — that field only
+  propagates to NGF's generated Service/Deployment, not
+  `metadata.annotations` on the Gateway itself, which is what
+  cert-manager's gateway-shim actually reads. No `Certificate` was ever
+  created despite the ClusterIssuer and gateway-shim controller both
+  running correctly, until the annotation was moved to each `gateways[]`
+  entry's `annotations` key (a sibling of `spec`, not nested inside it —
+  the chart's `templates/gateway.yaml` renders it straight onto
+  `metadata.annotations`). Fixed; confirmed live afterwards (`Certificate`
+  objects appeared, ACME orders/challenges created, Cloudflare DNS-01
+  records written).
+- `infrastructure/argocd/values.yaml` and `infrastructure/vault/values.yaml`'s
+  `HTTPRoute`s were switched from `sectionName: http` to
+  `sectionName: https` on `private-gateway` (TLS terminates at the
+  gateway, so each route's backend stays plain HTTP either way). Standing
+  instruction added above: every `HTTPRoute` binds to a Gateway's `https`
+  listener by default from now on, unless told otherwise.
+- `infrastructure/longhorn/values.yaml` gained the chart's built-in
+  `httproute` block (top-level key, a sibling of `ingress` — not nested
+  under it, despite the chart also having an `ingress.httproute`-shaped
+  README section that could mislead at a glance) exposing the Longhorn UI
+  at `longhorn.int.midugh.fr` through `private-gateway`'s `https`
+  listener. No `kustomization.yaml`/extra manifests needed — this stays
+  case 2 (values-only subfolder), same shape as before.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

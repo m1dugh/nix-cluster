@@ -30,3 +30,12 @@ csi:
   provisionerReplicaCount: 1
   resizerReplicaCount: 1
   snapshotterReplicaCount: 1
+
+httproute:
+  enabled: true
+  parentRefs:
+    - name: private-gateway
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - longhorn.int.midugh.fr
