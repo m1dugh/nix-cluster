@@ -1,0 +1,32 @@
+# Single-node storage: only cluster-master-1 has the 1TB disk attached, so
+# no replication is configured (replicaCount 1 everywhere) and the default
+# disk is only created on that node.
+#
+# Prerequisites on cluster-master-1, NOT managed by this repo (same as the
+# rest of Talos's machine config, applied manually via talosctl):
+#   - the Talos image must include the siderolabs/iscsi-tools system
+#     extension (Longhorn requires iscsid on the host, and Talos's root
+#     filesystem is immutable so it can't be installed in-cluster)
+#   - the 1TB disk (/dev/sda) must be formatted and mounted at
+#     /var/mnt/longhorn-disk via a Talos UserVolumeConfig
+#   - the node must be labeled `node.longhorn.io/create-default-disk=true`
+#     (one-time `kubectl label node cluster-master-1
+#     node.longhorn.io/create-default-disk=true`), since
+#     createDefaultDiskLabeledNodes below restricts default-disk creation
+#     to labeled nodes only — otherwise Longhorn would create a default
+#     disk (backed by the root filesystem) on every node.
+
+persistence:
+  defaultClassReplicaCount: 1
+  defaultDataLocality: disabled
+
+defaultSettings:
+  createDefaultDiskLabeledNodes: true
+  defaultDataPath: /var/mnt/longhorn-disk
+  defaultReplicaCount: 1
+
+csi:
+  attacherReplicaCount: 1
+  provisionerReplicaCount: 1
+  resizerReplicaCount: 1
+  snapshotterReplicaCount: 1
