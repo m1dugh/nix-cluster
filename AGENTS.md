@@ -485,11 +485,16 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   uninitialized after first sync — `vault operator init` /
   `vault operator unseal` against the pod is a manual, one-time step, not
   managed by this repo.
-- `infrastructure/vault/values.yaml` gained an `HTTPRoute` (via
-  `extraObjects`, same pattern as `infrastructure/argocd/values.yaml`)
-  exposing the Vault UI/API at `vault.int.midugh.fr` through
-  `private-gateway`, http only, forwarding to the chart's `vault` Service
-  on port `8200`.
+- `infrastructure/vault/values.yaml` gained an `HTTPRoute` exposing the
+  Vault UI/API at `vault.int.midugh.fr` through `private-gateway`, http
+  only. Unlike `argocd`/`nginx-gateway-fabric`, the Vault chart has no
+  `extraObjects` values key at all — it ships its own built-in
+  `server.httproute` template
+  (`templates/server-httproute.yaml`) instead, so the route is configured
+  via `server.httproute.enabled`/`hostnames`/`parentRefs` rather than a
+  hand-written manifest; the chart fills in the backendRef (its own
+  `vault` Service, port from `server.service.port`) and the default
+  `PathPrefix: /` match itself.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
