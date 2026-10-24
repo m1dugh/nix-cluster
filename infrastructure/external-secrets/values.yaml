@@ -1,0 +1,2 @@
+# No overrides beyond chart defaults needed yet (single replica, CRDs and
+# webhook/cert-controller all on by default).

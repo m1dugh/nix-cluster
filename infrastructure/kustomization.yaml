@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - argocd/application.yaml
   - bootstrap.yaml
+  - external-secrets/application.yaml
   - gateway-api-crds.yaml
   - longhorn/application.yaml
   - metrics-server.yaml

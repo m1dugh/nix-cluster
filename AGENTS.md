@@ -499,6 +499,33 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   hand-written manifest; the chart fills in the backendRef (its own
   `vault` Service, port from `server.service.port`) and the default
   `PathPrefix: /` match itself.
+- `infrastructure/external-secrets/` added (case 3: subfolder,
+  `application.yaml` + `values.yaml` + `kustomization.yaml` listing an
+  extra plain manifest) deploying External Secrets Operator (ESO) via its
+  upstream OCI Helm chart (`ghcr.io/external-secrets/charts`, chart
+  `external-secrets`, pinned `targetRevision: 2.14.0`), into the
+  `external-secrets` namespace, chart defaults only (CRDs, webhook, and
+  cert-controller are all on by default; no values overrides needed yet).
+  `application.yaml` uses a third `spec.sources` entry (alongside the
+  Helm chart source and the `ref: values` git source) pointing at
+  `infrastructure/external-secrets` itself as a Kustomize source, so the
+  `ClusterSecretStore` manifest in that same folder gets applied
+  alongside the Helm release — same case-3 pattern as
+  `infrastructure/nginx-gateway-fabric/`'s `NginxProxy` objects would use
+  if that chart didn't support `extraObjects` for them (it does, so it
+  stayed case 2 there).
+- `infrastructure/external-secrets/clustersecretstore.yaml` defines
+  `ClusterSecretStore/vault-infra`, a Vault provider pointed at
+  `http://vault.vault-system.svc:8200`, KV v2 mount `infra`, using
+  Kubernetes auth (`auth.kubernetes.mountPath: kubernetes`,
+  `role: external-secrets`, `serviceAccountRef` naming ESO's own
+  `external-secrets` ServiceAccount in the `external-secrets` namespace —
+  the chart's default SA name/namespace). The corresponding Vault-side
+  setup (enabling the `kubernetes` auth method, creating the
+  `external-secrets` role bound to that ServiceAccount, and a policy
+  granting read on the `infra/` KV mount) is a manual, one-time step
+  against the Vault pod, not managed by this repo — same category as
+  `vault operator init`/`unseal`.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

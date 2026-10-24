@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: ghcr.io/external-secrets/charts
+      chart: external-secrets
+      targetRevision: 2.14.0
+      helm:
+        valueFiles:
+          - $values/infrastructure/external-secrets/values.yaml
+    - repoURL: https://github.com/m1dugh/nix-cluster.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/m1dugh/nix-cluster.git
+      targetRevision: main
+      path: infrastructure/external-secrets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
