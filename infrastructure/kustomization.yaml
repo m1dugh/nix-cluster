@@ -6,5 +6,6 @@ resources:
   - bootstrap.yaml
   - gateway-api-crds.yaml
   - longhorn/application.yaml
+  - metrics-server.yaml
   - nginx-gateway-fabric/application.yaml
 

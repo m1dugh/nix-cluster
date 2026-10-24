@@ -348,6 +348,16 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
 
 ## Progress
 
+- `infrastructure/metrics-server.yaml` added (case 1: single file, inline
+  `helm.values`) deploying the upstream `kubernetes-sigs/metrics-server`
+  Helm chart (classic index repo
+  `https://kubernetes-sigs.github.io/metrics-server/` — it has no OCI
+  registry, unlike `argocd`/`nginx-gateway-fabric`), pinned
+  `targetRevision: 3.14.0`, into `kube-system`. Sets
+  `args: [--kubelet-insecure-tls]` since Talos kubelet serving certs
+  aren't signed by a CA metrics-server trusts by default; revisit if
+  Talos's kubelet cert setup changes. Wired into
+  `infrastructure/kustomization.yaml`.
 - Kubernetes API (`6443`) moved from publishing on `192.168.2.1`
   (vlan-infra, implicitly bound there via `address = null`) to
   `192.168.1.145` (vlan-wan, the router's existing WAN address) —
