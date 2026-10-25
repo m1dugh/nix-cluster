@@ -26,6 +26,18 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: init-config
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          command:
+            - sh
+            - -c
+            - cp /config-src/ddclient.conf /config/ddclient.conf
+          volumeMounts:
+            - name: config-src
+              mountPath: /config-src
+            - name: config
+              mountPath: /config
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}
@@ -46,12 +58,13 @@ spec:
           {{- end }}
           volumeMounts:
             - name: config
-              mountPath: /config/ddclient.conf
-              subPath: ddclient.conf
+              mountPath: /config
       volumes:
-        - name: config
+        - name: config-src
           configMap:
             name: {{ include "ddclient.fullname" . }}
+        - name: config
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -712,6 +712,18 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     pointed at the home gateway's public IPv4 (ddclient has no in-cluster
     network exposure of its own — no port is published, so no README
     Published-ports entry is needed for this app).
+  - **Bug caught live**: mounting the ConfigMap straight onto
+    `/config/ddclient.conf` via `subPath` fails on this image —
+    linuxserver.io's init scripts always try to `chown`/`chmod`
+    `/config/ddclient.conf` on startup, but a `subPath` mount of a
+    ConfigMap is read-only, so that step errors out
+    (`Read-only file system`) and s6 never starts the `init-ddclient-config`
+    service, meaning ddclient itself never runs despite the pod showing
+    `Running`/`1/1 Ready`. Fixed with an initContainer (same image) that
+    copies the ConfigMap (mounted read-only at `/config-src`) into a
+    writable `emptyDir` at `/config` before the main container starts, so
+    the file linuxserver.io's scripts chown/chmod is a regular writable
+    file, not a direct ConfigMap mount.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
