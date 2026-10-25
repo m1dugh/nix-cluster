@@ -5,7 +5,7 @@ configs:
     url: https://argocd.int.midugh.fr
     oidc.config: |
       name: Vault
-      issuer: https://vault.int.midugh.fr/v1/identity/oidc/provider/argocd
+      issuer: https://vault.int.midugh.fr/v1/identity/oidc/provider/default
       clientID: argocd
       requestedScopes:
         - openid

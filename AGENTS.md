@@ -81,10 +81,20 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   repo (`path: charts/<app>`) instead of an external `repoURL`/`chart`.
 - **Every application deployed under `private-gateway` must be
   authenticated via Vault (OIDC against Vault's own `identity/oidc`
-  provider), unless explicitly told otherwise for that app.** ArgoCD's
-  setup (native OIDC login, public/PKCE client, `groups`-claim RBAC
-  mapping a Vault identity group to the app's admin role) is the
-  reference pattern — see the ArgoCD OIDC entry under Progress. For an
+  provider), unless explicitly told otherwise for that app.** All such
+  apps share the **same** named Vault OIDC provider,
+  `identity/oidc/provider/default` (`allowed_client_ids="*"`), rather
+  than each app getting its own named provider — a bare
+  `identity/oidc/client` alone is **not** sufficient (it only gets
+  Vault's legacy implicit-flow-only discovery document, which silently
+  fails against ArgoCD-style OIDC clients expecting code+PKCE); see the
+  ArgoCD OIDC entry under Progress for the full Vault-side setup
+  (key, group, scope, assignment, client, and this shared provider) and
+  why each piece is needed. ArgoCD's setup (native OIDC login,
+  public/PKCE client, `groups`-claim RBAC mapping a Vault identity group
+  to the app's admin role) is the reference pattern for every future
+  app — point each new app's own `issuer` config at
+  `https://vault.int.midugh.fr/v1/identity/oidc/provider/default`. For an
   app with no native OIDC support, prefer fronting it with an
   oauth2-proxy-style sidecar/forward-auth wired to Vault rather than
   leaving it unauthenticated; if neither is practical, flag it instead of
@@ -809,36 +819,41 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
        and by argocd-server itself server-side for the token/userinfo
        exchange; `vault.int.midugh.fr` through `private-gateway` already
        satisfies both.
-    7. **`vault write identity/oidc/provider/argocd
-       allowed_client_ids="<argocd client's client_id>"
-       scopes_supported="groups"`** — a named `identity/oidc/provider`
-       object, **required in addition to** steps 1-6 above; an
-       `identity/oidc/client` on its own only gets the legacy/default
-       discovery document at the bare `identity/oidc/.well-known/
-       openid-configuration` path, which only advertises
-       `response_types_supported: ["id_token"]` (implicit flow, no
-       `token_endpoint`/`userinfo_endpoint`, no PKCE) — ArgoCD correctly
-       detects this and falls back to implicit flow, which silently fails
-       against Vault's implementation of it (user gets bounced back to
-       the ArgoCD login page with no error in either ArgoCD's or Vault's
-       logs). A named provider's discovery document instead lives at
-       `identity/oidc/provider/<name>/.well-known/openid-configuration`
-       and correctly advertises `response_types_supported: ["code"]`,
-       `grant_types_supported: ["authorization_code"]`, and
-       `code_challenge_methods_supported: ["plain", "S256"]` (PKCE) — the
-       flow ArgoCD's public-client OIDC setup actually expects.
-       `scopes_supported` must reference the name of an already-created
-       `identity/oidc/scope` object (step 3's `groups` scope) — passing a
-       scope name before that scope exists fails with Vault rejecting the
-       write. **`infrastructure/argocd/values.yaml`'s `oidc.config.issuer`
-       must point at this provider-scoped URL**
-       (`https://vault.int.midugh.fr/v1/identity/oidc/provider/argocd`),
+    7. **`vault write identity/oidc/provider/default
+       allowed_client_ids="*" scopes_supported="groups"`** — a named
+       `identity/oidc/provider` object, **required in addition to**
+       steps 1-6 above; an `identity/oidc/client` on its own only gets
+       the legacy/default discovery document at the bare
+       `identity/oidc/.well-known/openid-configuration` path, which only
+       advertises `response_types_supported: ["id_token"]` (implicit
+       flow, no `token_endpoint`/`userinfo_endpoint`, no PKCE) — ArgoCD
+       correctly detects this and falls back to implicit flow, which
+       silently fails against Vault's implementation of it (user gets
+       bounced back to the ArgoCD login page with no error in either
+       ArgoCD's or Vault's logs). A named provider's discovery document
+       instead lives at `identity/oidc/provider/<name>/.well-known/
+       openid-configuration` and correctly advertises
+       `response_types_supported: ["code"]`, `grant_types_supported:
+       ["authorization_code"]`, and `code_challenge_methods_supported:
+       ["plain", "S256"]` (PKCE) — the flow ArgoCD's public-client OIDC
+       setup actually expects. `scopes_supported` must reference the
+       name of an already-created `identity/oidc/scope` object (step 3's
+       `groups` scope) — passing a scope name before that scope exists
+       fails with Vault rejecting the write.
+       **This provider is named `default` and shared across every
+       private-gateway app**, not one-per-app — `allowed_client_ids="*"`
+       so any future app's OIDC client works against it without having
+       to edit this provider each time a new app is added. Every app's
+       own `oidc.config.issuer` (or equivalent) must point at
+       `https://vault.int.midugh.fr/v1/identity/oidc/provider/default`,
        not the bare `identity/oidc` path from step 6 — the base
        `identity/oidc/config issuer` (step 6) still matters (it's what
        Vault's named-provider discovery document derives its own full
-       URLs from), but ArgoCD's own `issuer` config value is the
-       provider-specific one.
-  - The named `identity/oidc/provider/argocd` object (step 7) was the
+       URLs from), but each app's own `issuer` config value is this
+       shared provider-specific one. New apps needing Vault OIDC per the
+       standing instruction above should reuse `provider/default` rather
+       than creating their own named provider.
+  - The named `identity/oidc/provider/default` object (step 7) was the
     missing piece — steps 1-6 alone are not sufficient for ArgoCD, since
     they only produce the implicit-flow-only legacy discovery document.
     With step 7 in place, the provider's discovery document is confirmed
