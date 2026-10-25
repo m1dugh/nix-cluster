@@ -866,9 +866,10 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     With step 7 in place, the provider's discovery document is confirmed
     correct (`response_types_supported: ["code"]`,
     `code_challenge_methods_supported`, `scopes_supported: ["openid",
-    "groups"]`) and `argocd-server` was restarted to pick it up; the
-    actual login flow + RBAC admin mapping still needs end-to-end
-    confirmation.
+    "groups"]`) and, combined with `enablePKCEAuthentication: true` in
+    `oidc.config` (see above), **login flow + RBAC admin mapping are now
+    live-verified end-to-end**: a Vault user in the `admin` group logs
+    into ArgoCD via Vault OIDC and lands with `role:admin`.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
