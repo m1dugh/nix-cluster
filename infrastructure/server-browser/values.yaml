@@ -1,0 +1,25 @@
+# xpra left intentionally passwordless (no native OIDC support in this
+# chart; explicit exception, same category as Vault/Longhorn — see
+# AGENTS.md's private-gateway auth standing instruction).
+xpra:
+  enabled: true
+  httpRoute:
+    enabled: true
+    gatewayName: private-gateway
+    gatewayNamespace: gateway-system
+    sectionName: https
+    hostname: server-browser.int.midugh.fr
+
+chromium:
+  debug:
+    enabled: true
+    httpRoute:
+      enabled: true
+      gatewayName: private-gateway
+      gatewayNamespace: gateway-system
+      sectionName: https
+      hostname: server-browser-cdp.int.midugh.fr
+
+persistence:
+  enabled: true
+  size: 8Gi

@@ -11,5 +11,6 @@ resources:
   - longhorn/application.yaml
   - metrics-server.yaml
   - nginx-gateway-fabric/application.yaml
+  - server-browser/application.yaml
   - vault/application.yaml
 

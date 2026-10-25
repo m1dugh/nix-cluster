@@ -727,6 +727,22 @@ instruction above.
   `infrastructure/argocd/values.yaml`) is live-verified end-to-end — see
   "Vault OIDC setup (reference pattern)" above, for which this is the
   reference implementation.
+- `infrastructure/server-browser/` added (case 2: values-only subfolder)
+  deploying `github.com/m1dugh/server-browser`'s Helm chart (OCI repo
+  `ghcr.io/m1dugh/server-browser/charts`, chart `server-browser`, pinned
+  `targetRevision: 0.1.2`), into a dedicated `chromium` namespace. This
+  chart has no native OIDC support — only a static xpra password — so
+  per explicit decision it is left **unauthenticated at the gateway**
+  (same exception category as Vault/Longhorn), rather than adding a
+  Vault-sourced password.
+  - `xpra.enabled: true` with its own `HTTPRoute` on `private-gateway`
+    (`server-browser.int.midugh.fr`) for the interactive browser viewer.
+  - `chromium.debug.enabled: true` with its own `HTTPRoute` on
+    `private-gateway` (`server-browser-cdp.int.midugh.fr`) exposing the
+    CDP endpoint, per explicit decision (kept reachable outside the
+    cluster rather than ClusterIP-only, for external agent access).
+  - `persistence.enabled: true` (8Gi, default `longhorn` StorageClass) so
+    the chromium profile/session survives pod restarts.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
