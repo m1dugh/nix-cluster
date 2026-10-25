@@ -2,6 +2,7 @@ configs:
   params:
     server.insecure: true
   cm:
+    url: https://argocd.int.midugh.fr
     oidc.config: |
       name: Vault
       issuer: https://vault.int.midugh.fr/v1/identity/oidc
