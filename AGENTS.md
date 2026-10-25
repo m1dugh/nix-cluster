@@ -519,6 +519,7 @@ instruction above.
 | argocd | argocd | Self-managed via its own Helm chart; UI at `argocd.int.midugh.fr`, Vault OIDC login (see "Vault OIDC setup (reference pattern)" above) with `admin` Vault group mapped to `role:admin`. |
 | nginx-gateway-fabric | gateway-system | `private-gateway`/`public-gateway`, TLS via cert-manager gateway-shim (`*.int.midugh.fr` / `*.midugh.fr`), NodePorts forwarded from `cluster-router` haproxy. |
 | longhorn | longhorn-system | UI at `longhorn.int.midugh.fr` through `private-gateway`; deliberately left unauthenticated (see standing instructions). |
+| ddclient | default | Repo-authored chart (`charts/ddclient`); keeps `gateway.infra.midugh.fr` pointed at the home gateway's public IPv4 via Cloudflare. No in-cluster exposure/port published. |
 
 - `infrastructure/metrics-server.yaml` added (case 1: single file, inline
   `helm.values`) deploying the upstream `kubernetes-sigs/metrics-server`
@@ -711,80 +712,17 @@ instruction above.
   records written).
 - **`longhorn`** — deployed, see Deployed applications table. Case 2
   (values-only subfolder).
-- **`charts/ddclient`** added — no suitable upstream chart exists (the
-  only community option, TrueCharts, is TrueNAS-SCALE-specific and pulls
-  in their opinionated `common` library chart), so this chart was
-  scaffolded via `helm create` and trimmed to just a `ConfigMap` +
-  `Deployment` (no Service/Ingress/HPA/ServiceAccount/HTTPRoute — ddclient
-  needs none of those). Runs `lscr.io/linuxserver/ddclient`, mounting a
-  rendered `ddclient.conf` at `/config/ddclient.conf`. Config forces
-  IPv4-only discovery against `ifconfig.me`
-  (`usev6=disabled`, `usev4=webv4, webv4=ifconfig.me`) and uses
-  ddclient's native `$ENV{VAR}` substitution (supported since v3.11.0) so
-  the Cloudflare API token (`login=token, password=$ENV{CF_API_TOKEN}`)
-  never has to be templated into the ConfigMap itself — it's injected as
-  a pod env var sourced from a Secret instead. The Deployment's pod
-  template carries a `checksum/config` annotation
-  (sha256 of the rendered ConfigMap) so edits to `values.yaml` actually
-  roll the pod, since mounted ConfigMaps don't trigger a restart on their
-  own.
-  - `infrastructure/ddclient/` deploys it (case 3 shape: subfolder with
-    `application.yaml` + `values.yaml` + `kustomization.yaml` for the
-    extra `ExternalSecret` manifest) into the `default` namespace — the
-    one deliberate exception to "everything lives under its own
-    namespace" in this repo, by explicit request. `application.yaml`'s
-    `spec.sources` differs from every other app's: since the chart itself
-    lives in this repo rather than an upstream Helm repo, the first
-    source entry points straight at `path: charts/ddclient` in this same
-    git repo (instead of an external `repoURL`/`chart` pair) with
-    `helm.valueFiles` still pointing at
-    `$values/infrastructure/ddclient/values.yaml` via the usual
-    `ref: values` second source; a third source (this same repo,
-    `path: infrastructure/ddclient`) applies the `ExternalSecret`
-    alongside the Helm release, same pattern as
-    `infrastructure/external-secrets/`.
-  - `infrastructure/ddclient/externalsecret.yaml` defines
-    `ExternalSecret/ddclient-cloudflare-api-token` (namespace `default`)
-    pulling from `ClusterSecretStore/vault-infra` at Vault path
-    `ddclient`, property `apiToken`, materialized as plain Secret
-    `ddclient-cloudflare-api-token-secret` (key `api-token`) — the Vault
-    KV write at `infra/ddclient` (key `apiToken`) is a manual, one-time
-    step against the Vault pod, same category as the other Vault
-    bootstrap steps already noted above.
-  - Record managed: `gateway.infra.midugh.fr`, zone `midugh.fr`, kept
-    pointed at the home gateway's public IPv4 (ddclient has no in-cluster
-    network exposure of its own — no port is published, so no README
-    Published-ports entry is needed for this app).
-  - **Bug caught live**: mounting the ConfigMap straight onto
-    `/config/ddclient.conf` via `subPath` fails on this image —
-    linuxserver.io's init scripts always try to `chown`/`chmod`
-    `/config/ddclient.conf` on startup, but a `subPath` mount of a
-    ConfigMap is read-only, so that step errors out
-    (`Read-only file system`) and s6 never starts the `init-ddclient-config`
-    service, meaning ddclient itself never runs despite the pod showing
-    `Running`/`1/1 Ready`. Fixed with an initContainer (same image) that
-    copies the ConfigMap (mounted read-only at `/config-src`) into a
-    writable `emptyDir` at `/config` before the main container starts, so
-    the file linuxserver.io's scripts chown/chmod is a regular writable
-    file, not a direct ConfigMap mount.
-  - **Second bug caught live**: once the pod actually started ddclient,
-    every update attempt failed with a bare `FAILED: [cloudflare]
-    [gateway.infra.midugh.fr]> 400` from Cloudflare's API. Root cause:
-    `password=$ENV{CF_API_TOKEN}` is not a real ddclient feature — there
-    is no `$ENV{...}` inline string-substitution support anywhere in
-    ddclient's config parser (verified directly against
-    `ddclient.in` on the `ddclient/ddclient` `main` branch — the only
-    `$ENV{...}` handling in the source is unrelated internal code, not a
-    config-value substitution mechanism). The config's `password` value
-    was therefore being sent to Cloudflare as the literal, useless string
-    `$ENV{CF_API_TOKEN}`, which the API correctly rejects as an invalid
-    token. The real, correct mechanism (confirmed in the same source,
-    `parse_assignment()`'s `_env` suffix handling) is a separate
-    `<key>_env=<ENV_VAR_NAME>` config directive — so the fix is
-    `password_env=CF_API_TOKEN` instead of `password=$ENV{CF_API_TOKEN}`
-    (`charts/ddclient/templates/configmap.yaml`). Any future chart/config
-    needing a secret value from an env var in ddclient's config should
-    use this same `_env` suffix convention, not `$ENV{...}` interpolation.
+- **`ddclient`** — deployed, see Deployed applications table.
+  `charts/ddclient` is repo-authored (no suitable upstream chart exists).
+  Two reusable gotchas for future repo-authored charts on
+  `lscr.io/linuxserver/*` images: (1) never `subPath`-mount a ConfigMap
+  onto a config file these images manage — their init scripts
+  `chown`/`chmod` it on startup, which fails read-only; mount the
+  ConfigMap elsewhere and copy it into a writable `emptyDir` via an
+  initContainer instead. (2) ddclient has no `$ENV{VAR}` inline
+  substitution despite docs/folklore suggesting otherwise — inject a
+  secret value with the separate `<key>_env=<ENV_VAR_NAME>` directive
+  (e.g. `password_env=CF_API_TOKEN`), not `password=$ENV{CF_API_TOKEN}`.
 - ArgoCD's Vault OIDC login (`configs.cm.oidc.config` + `configs.rbac` in
   `infrastructure/argocd/values.yaml`) is live-verified end-to-end — see
   "Vault OIDC setup (reference pattern)" above, for which this is the
