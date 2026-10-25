@@ -809,9 +809,44 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
        and by argocd-server itself server-side for the token/userinfo
        exchange; `vault.int.midugh.fr` through `private-gateway` already
        satisfies both.
-  - Not yet live-verified end-to-end (login flow + RBAC admin mapping) —
-    the Vault-side steps above still need to be run manually before this
-    can be tested.
+    7. **`vault write identity/oidc/provider/argocd
+       allowed_client_ids="<argocd client's client_id>"
+       scopes_supported="groups"`** — a named `identity/oidc/provider`
+       object, **required in addition to** steps 1-6 above; an
+       `identity/oidc/client` on its own only gets the legacy/default
+       discovery document at the bare `identity/oidc/.well-known/
+       openid-configuration` path, which only advertises
+       `response_types_supported: ["id_token"]` (implicit flow, no
+       `token_endpoint`/`userinfo_endpoint`, no PKCE) — ArgoCD correctly
+       detects this and falls back to implicit flow, which silently fails
+       against Vault's implementation of it (user gets bounced back to
+       the ArgoCD login page with no error in either ArgoCD's or Vault's
+       logs). A named provider's discovery document instead lives at
+       `identity/oidc/provider/<name>/.well-known/openid-configuration`
+       and correctly advertises `response_types_supported: ["code"]`,
+       `grant_types_supported: ["authorization_code"]`, and
+       `code_challenge_methods_supported: ["plain", "S256"]` (PKCE) — the
+       flow ArgoCD's public-client OIDC setup actually expects.
+       `scopes_supported` must reference the name of an already-created
+       `identity/oidc/scope` object (step 3's `groups` scope) — passing a
+       scope name before that scope exists fails with Vault rejecting the
+       write. **`infrastructure/argocd/values.yaml`'s `oidc.config.issuer`
+       must point at this provider-scoped URL**
+       (`https://vault.int.midugh.fr/v1/identity/oidc/provider/argocd`),
+       not the bare `identity/oidc` path from step 6 — the base
+       `identity/oidc/config issuer` (step 6) still matters (it's what
+       Vault's named-provider discovery document derives its own full
+       URLs from), but ArgoCD's own `issuer` config value is the
+       provider-specific one.
+  - The named `identity/oidc/provider/argocd` object (step 7) was the
+    missing piece — steps 1-6 alone are not sufficient for ArgoCD, since
+    they only produce the implicit-flow-only legacy discovery document.
+    With step 7 in place, the provider's discovery document is confirmed
+    correct (`response_types_supported: ["code"]`,
+    `code_challenge_methods_supported`, `scopes_supported: ["openid",
+    "groups"]`) and `argocd-server` was restarted to pick it up; the
+    actual login flow + RBAC admin mapping still needs end-to-end
+    confirmation.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
