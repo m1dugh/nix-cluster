@@ -774,9 +774,16 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   OIDC identity provider (`identity/oidc`), not Dex and not an external
   IdP. **Deliberately configured as a public (non-confidential) OIDC
   client** — no `clientSecret` key is set — so no client secret ever
-  needs to exist or be synced via ESO/Vault KV; ArgoCD's built-in OIDC
-  support does PKCE automatically when a client has no configured secret.
-  RBAC (`configs.rbac.policy.csv: "g, admin, role:admin"` +
+  needs to exist or be synced via ESO/Vault KV. **`oidc.config` must also
+  set `enablePKCEAuthentication: true` explicitly** — ArgoCD does *not*
+  turn on PKCE automatically just because no client secret is
+  configured (an earlier assumption here that was wrong); without this
+  flag ArgoCD's authorization_code-flow authorize request omits
+  `code_challenge`/`code_challenge_method` entirely, and Vault (whose
+  `argocd` client is `client_type=public`) rejects it with
+  `invalid_request: PKCE is required for public clients` — confirmed
+  live in `argocd-server`'s logs. RBAC (`configs.rbac.policy.csv: "g,
+  admin, role:admin"` +
   `configs.rbac.scopes: "[groups]"`) maps Vault identity group `admin` to
   ArgoCD's built-in `role:admin`, so any Vault user in that group becomes
   an ArgoCD admin automatically on login — no separate ArgoCD-side user

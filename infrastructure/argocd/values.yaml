@@ -7,6 +7,7 @@ configs:
       name: Vault
       issuer: https://vault.int.midugh.fr/v1/identity/oidc/provider/default
       clientID: 0O8PIoLjDhu0wehgy1U0X8whcz7vwMfc
+      enablePKCEAuthentication: true
       requestedScopes:
         - openid
         - groups
