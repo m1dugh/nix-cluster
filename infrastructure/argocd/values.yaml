@@ -6,7 +6,7 @@ configs:
     oidc.config: |
       name: Vault
       issuer: https://vault.int.midugh.fr/v1/identity/oidc/provider/default
-      clientID: argocd
+      clientID: 0O8PIoLjDhu0wehgy1U0X8whcz7vwMfc
       requestedScopes:
         - openid
         - groups
