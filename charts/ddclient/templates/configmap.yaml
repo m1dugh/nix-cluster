@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ddclient.fullname" . }}
+  labels:
+    {{- include "ddclient.labels" . | nindent 4 }}
+data:
+  ddclient.conf: |
+    daemon={{ .Values.ddclient.daemonInterval }}
+    syslog=yes
+    ssl=yes
+
+    usev6=disabled
+    usev4=webv4, webv4={{ .Values.ddclient.web }}
+
+    protocol={{ .Values.ddclient.protocol }}
+    zone={{ .Values.ddclient.zone }}
+    login=token
+    password=$ENV{CF_API_TOKEN}
+    {{- range .Values.ddclient.hosts }}
+    {{ . }}
+    {{- end }}

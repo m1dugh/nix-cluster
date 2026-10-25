@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ddclient
+description: ddclient updating a Cloudflare DNS record from the detected public IPv4 address
+type: application
+version: 0.1.0
+appVersion: "4.0.0"

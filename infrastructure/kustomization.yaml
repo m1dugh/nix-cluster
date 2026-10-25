@@ -5,6 +5,7 @@ resources:
   - argocd/application.yaml
   - bootstrap.yaml
   - cert-manager/application.yaml
+  - ddclient/application.yaml
   - external-secrets/application.yaml
   - gateway-api-crds.yaml
   - longhorn/application.yaml

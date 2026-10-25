@@ -1,0 +1,40 @@
+# Default values for ddclient.
+
+image:
+  repository: lscr.io/linuxserver/ddclient
+  pullPolicy: IfNotPresent
+  tag: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ddclient configuration. All values below render directly into ddclient.conf.
+ddclient:
+  # How often ddclient checks for an IP change and updates the record.
+  daemonInterval: 5m
+  # Web service used to discover the public IPv4 address. IPv6 lookups are
+  # explicitly disabled (usev6=disabled) since only IPv4 is wanted.
+  web: ifconfig.me
+  # DNS provider protocol.
+  protocol: cloudflare
+  # Cloudflare zone the record belongs to.
+  zone: ""
+  # Record(s) to keep updated.
+  hosts: []
+  # Name of the Secret (e.g. materialized by an ExternalSecret) holding the
+  # Cloudflare API token.
+  tokenSecretName: ""
+  # Key within that Secret holding the token.
+  tokenSecretKey: apiToken

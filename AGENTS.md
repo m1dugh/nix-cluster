@@ -71,6 +71,14 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   TLS terminates at the gateway, so this only affects which listener the
   route attaches to, not the route's backend protocol (stays plain HTTP
   against the in-cluster service either way).
+- **`/charts`** (repo root, not filesystem root) holds every Helm chart
+  authored and maintained in this repo, for apps that have no suitable
+  upstream Helm chart (e.g. `charts/ddclient`). Each app gets its own
+  subfolder, scaffolded via `helm create` and trimmed down to only the
+  templates it actually needs. A chart under `/charts` is deployed the
+  same way an upstream chart is (an `infrastructure/<app>/` ArgoCD
+  `Application`), except its Helm source entry points at this same git
+  repo (`path: charts/<app>`) instead of an external `repoURL`/`chart`.
 
 ## ArgoCD / cluster infrastructure (app of apps)
 
@@ -660,6 +668,50 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   at `longhorn.int.midugh.fr` through `private-gateway`'s `https`
   listener. No `kustomization.yaml`/extra manifests needed — this stays
   case 2 (values-only subfolder), same shape as before.
+- **`charts/ddclient`** added — no suitable upstream chart exists (the
+  only community option, TrueCharts, is TrueNAS-SCALE-specific and pulls
+  in their opinionated `common` library chart), so this chart was
+  scaffolded via `helm create` and trimmed to just a `ConfigMap` +
+  `Deployment` (no Service/Ingress/HPA/ServiceAccount/HTTPRoute — ddclient
+  needs none of those). Runs `lscr.io/linuxserver/ddclient`, mounting a
+  rendered `ddclient.conf` at `/config/ddclient.conf`. Config forces
+  IPv4-only discovery against `ifconfig.me`
+  (`usev6=disabled`, `usev4=webv4, webv4=ifconfig.me`) and uses
+  ddclient's native `$ENV{VAR}` substitution (supported since v3.11.0) so
+  the Cloudflare API token (`login=token, password=$ENV{CF_API_TOKEN}`)
+  never has to be templated into the ConfigMap itself — it's injected as
+  a pod env var sourced from a Secret instead. The Deployment's pod
+  template carries a `checksum/config` annotation
+  (sha256 of the rendered ConfigMap) so edits to `values.yaml` actually
+  roll the pod, since mounted ConfigMaps don't trigger a restart on their
+  own.
+  - `infrastructure/ddclient/` deploys it (case 3 shape: subfolder with
+    `application.yaml` + `values.yaml` + `kustomization.yaml` for the
+    extra `ExternalSecret` manifest) into the `default` namespace — the
+    one deliberate exception to "everything lives under its own
+    namespace" in this repo, by explicit request. `application.yaml`'s
+    `spec.sources` differs from every other app's: since the chart itself
+    lives in this repo rather than an upstream Helm repo, the first
+    source entry points straight at `path: charts/ddclient` in this same
+    git repo (instead of an external `repoURL`/`chart` pair) with
+    `helm.valueFiles` still pointing at
+    `$values/infrastructure/ddclient/values.yaml` via the usual
+    `ref: values` second source; a third source (this same repo,
+    `path: infrastructure/ddclient`) applies the `ExternalSecret`
+    alongside the Helm release, same pattern as
+    `infrastructure/external-secrets/`.
+  - `infrastructure/ddclient/externalsecret.yaml` defines
+    `ExternalSecret/ddclient-cloudflare-api-token` (namespace `default`)
+    pulling from `ClusterSecretStore/vault-infra` at Vault path
+    `ddclient`, property `apiToken`, materialized as plain Secret
+    `ddclient-cloudflare-api-token-secret` (key `api-token`) — the Vault
+    KV write at `infra/ddclient` (key `apiToken`) is a manual, one-time
+    step against the Vault pod, same category as the other Vault
+    bootstrap steps already noted above.
+  - Record managed: `gateway.infra.midugh.fr`, zone `midugh.fr`, kept
+    pointed at the home gateway's public IPv4 (ddclient has no in-cluster
+    network exposure of its own — no port is published, so no README
+    Published-ports entry is needed for this app).
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

@@ -1,0 +1,6 @@
+ddclient:
+  zone: midugh.fr
+  hosts:
+    - gateway.infra.midugh.fr
+  tokenSecretName: ddclient-cloudflare-api-token-secret
+  tokenSecretKey: api-token
