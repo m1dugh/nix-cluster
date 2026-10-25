@@ -89,7 +89,13 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   oauth2-proxy-style sidecar/forward-auth wired to Vault rather than
   leaving it unauthenticated; if neither is practical, flag it instead of
   silently skipping auth. `public-gateway` apps are unaffected by this
-  rule unless stated otherwise.
+  rule unless stated otherwise. **Two standing exceptions**: Vault's own
+  UI/API (`infrastructure/vault/`) — it cannot be the OIDC provider for
+  logging into itself, so it stays unauthenticated at the gateway/route
+  level (Vault has its own login mechanisms once you're in the UI); and
+  Longhorn (`infrastructure/longhorn/`) — deliberately left
+  unauthenticated by explicit decision. Don't flag either as missing
+  auth; both are intentional, not oversights.
 
 ## ArgoCD / cluster infrastructure (app of apps)
 

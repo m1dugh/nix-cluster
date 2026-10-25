@@ -1,6 +1,18 @@
 configs:
   params:
     server.insecure: true
+  cm:
+    oidc.config: |
+      name: Vault
+      issuer: https://vault.int.midugh.fr/v1/identity/oidc
+      clientID: argocd
+      requestedScopes:
+        - openid
+        - groups
+  rbac:
+    policy.csv: |
+      g, admin, role:admin
+    scopes: "[groups]"
 
 global:
   networkPolicy:
