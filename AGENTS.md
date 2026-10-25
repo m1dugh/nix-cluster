@@ -79,6 +79,17 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   same way an upstream chart is (an `infrastructure/<app>/` ArgoCD
   `Application`), except its Helm source entry points at this same git
   repo (`path: charts/<app>`) instead of an external `repoURL`/`chart`.
+- **Every application deployed under `private-gateway` must be
+  authenticated via Vault (OIDC against Vault's own `identity/oidc`
+  provider), unless explicitly told otherwise for that app.** ArgoCD's
+  setup (native OIDC login, public/PKCE client, `groups`-claim RBAC
+  mapping a Vault identity group to the app's admin role) is the
+  reference pattern — see the ArgoCD OIDC entry under Progress. For an
+  app with no native OIDC support, prefer fronting it with an
+  oauth2-proxy-style sidecar/forward-auth wired to Vault rather than
+  leaving it unauthenticated; if neither is practical, flag it instead of
+  silently skipping auth. `public-gateway` apps are unaffected by this
+  rule unless stated otherwise.
 
 ## ArgoCD / cluster infrastructure (app of apps)
 
@@ -724,6 +735,77 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     writable `emptyDir` at `/config` before the main container starts, so
     the file linuxserver.io's scripts chown/chmod is a regular writable
     file, not a direct ConfigMap mount.
+  - **Second bug caught live**: once the pod actually started ddclient,
+    every update attempt failed with a bare `FAILED: [cloudflare]
+    [gateway.infra.midugh.fr]> 400` from Cloudflare's API. Root cause:
+    `password=$ENV{CF_API_TOKEN}` is not a real ddclient feature — there
+    is no `$ENV{...}` inline string-substitution support anywhere in
+    ddclient's config parser (verified directly against
+    `ddclient.in` on the `ddclient/ddclient` `main` branch — the only
+    `$ENV{...}` handling in the source is unrelated internal code, not a
+    config-value substitution mechanism). The config's `password` value
+    was therefore being sent to Cloudflare as the literal, useless string
+    `$ENV{CF_API_TOKEN}`, which the API correctly rejects as an invalid
+    token. The real, correct mechanism (confirmed in the same source,
+    `parse_assignment()`'s `_env` suffix handling) is a separate
+    `<key>_env=<ENV_VAR_NAME>` config directive — so the fix is
+    `password_env=CF_API_TOKEN` instead of `password=$ENV{CF_API_TOKEN}`
+    (`charts/ddclient/templates/configmap.yaml`). Any future chart/config
+    needing a secret value from an env var in ddclient's config should
+    use this same `_env` suffix convention, not `$ENV{...}` interpolation.
+- `infrastructure/argocd/values.yaml` gained `configs.cm.oidc.config` +
+  `configs.rbac` wiring ArgoCD's native OIDC login against Vault's own
+  OIDC identity provider (`identity/oidc`), not Dex and not an external
+  IdP. **Deliberately configured as a public (non-confidential) OIDC
+  client** — no `clientSecret` key is set — so no client secret ever
+  needs to exist or be synced via ESO/Vault KV; ArgoCD's built-in OIDC
+  support does PKCE automatically when a client has no configured secret.
+  RBAC (`configs.rbac.policy.csv: "g, admin, role:admin"` +
+  `configs.rbac.scopes: "[groups]"`) maps Vault identity group `admin` to
+  ArgoCD's built-in `role:admin`, so any Vault user in that group becomes
+  an ArgoCD admin automatically on login — no separate ArgoCD-side user
+  management.
+  - The corresponding Vault-side setup is a manual, one-time step against
+    the Vault pod (same category as `vault operator init`/`unseal`, the
+    ESO Kubernetes-auth role, and the cert-manager/ddclient KV writes
+    already noted above) — not tracked by this repo:
+    1. `vault write identity/oidc/key/argocd allowed_client_ids="*"
+       verification_ttl="2h" rotation_period="1h" algorithm="RS256"` —
+       the signing key Vault uses to issue ID tokens for this client.
+    2. `vault write identity/group name="admin" policies="admin"` —
+       create (or confirm) the Vault identity group named exactly
+       `admin`, carrying the `admin` policy, with every user that should
+       get ArgoCD admin access added as a member (directly via
+       `member_entity_ids`, or via an external-auth group alias if admin
+       access flows from an upstream auth method). The group's **name**
+       is what ArgoCD's RBAC `policy.csv` matches on via the `groups`
+       scope/claim, not the policy name itself — they happen to both be
+       `admin` here by deliberate 1:1 convention, but it's the group name
+       that's load-bearing.
+    3. `vault write identity/oidc/scope/groups description="Vault group
+       membership" template='{"groups":
+       {{identity.entity.groups.names}}}'` — the `groups` scope ArgoCD
+       requests, so the ID token actually carries group membership as a
+       claim.
+    4. `vault write identity/oidc/assignment/argocd-admins group_ids=<id
+       of the "admin" group>` — the assignment restricting who is allowed
+       to authenticate against this client at all (distinct from, and in
+       addition to, the groups-claim/RBAC mapping above).
+    5. `vault write identity/oidc/client/argocd redirect_uris="https://argocd.int.midugh.fr/auth/callback,https://argocd.int.midugh.fr/pkce/callback"
+       assignments="argocd-admins" key="argocd" id_token_ttl="30m"
+       access_token_ttl="1h"` — note this intentionally omits
+       `client_type` (defaults to `confidential` in Vault, but ArgoCD
+       simply never sends a secret back since none is configured on its
+       side — PKCE covers the public-client flow) — revisit if Vault
+       ever enforces `client_type=public` strictly on its own side.
+    6. `vault write identity/oidc/config issuer="https://vault.int.midugh.fr/v1/identity/oidc"`
+       (if not already set) — must be reachable both by end-user browsers
+       and by argocd-server itself server-side for the token/userinfo
+       exchange; `vault.int.midugh.fr` through `private-gateway` already
+       satisfies both.
+  - Not yet live-verified end-to-end (login flow + RBAC admin mapping) —
+    the Vault-side steps above still need to be run manually before this
+    can be tested.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 

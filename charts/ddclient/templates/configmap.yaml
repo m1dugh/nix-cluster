@@ -16,7 +16,7 @@ data:
     protocol={{ .Values.ddclient.protocol }}
     zone={{ .Values.ddclient.zone }}
     login=token
-    password=$ENV{CF_API_TOKEN}
+    password_env=CF_API_TOKEN
     {{- range .Values.ddclient.hosts }}
     {{ . }}
     {{- end }}
