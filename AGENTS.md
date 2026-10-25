@@ -90,7 +90,8 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   fails against ArgoCD-style OIDC clients expecting code+PKCE); see the
   ArgoCD OIDC entry under Progress for the full Vault-side setup
   (key, group, scope, assignment, client, and this shared provider) and
-  why each piece is needed. ArgoCD's setup (native OIDC login,
+  why each piece is needed — see "Vault OIDC setup (reference pattern)"
+  below. ArgoCD's setup (native OIDC login,
   public/PKCE client, `groups`-claim RBAC mapping a Vault identity group
   to the app's admin role) is the reference pattern for every future
   app — point each new app's own `issuer` config at
@@ -106,6 +107,65 @@ Current advancement of the project should be stored in the @AGENTS.md file.
   Longhorn (`infrastructure/longhorn/`) — deliberately left
   unauthenticated by explicit decision. Don't flag either as missing
   auth; both are intentional, not oversights.
+- **Once an app's deployment is fully finished and confirmed working by
+  the user, clean up its entry in this file**: add/update its row in the
+  "Deployed applications" table at the top of `## Progress`, then
+  collapse that app's deployment bullets under `## Progress` down to at
+  most one short bullet — keep only facts that aren't already derivable
+  by reading its `application.yaml`/`values.yaml`/manifests (e.g. its
+  case classification, a pinned chart version, an external fact like "no
+  OCI chart exists"), and drop everything else: implementation errors,
+  wrong assumptions, "bug caught live" narrative, and any detail plainly
+  visible in the files themselves (e.g. don't note that a chart uses its
+  own built-in `httproute` instead of `extraObjects` — that's visible in
+  `values.yaml`). Durable reference material that other apps are meant to
+  copy (e.g. the Vault OIDC setup below) moves to its own permanent
+  section instead of being deleted — only the narrative/error framing
+  around it is stripped. After finishing a deployment, ask the user
+  whether everything is working before running this cleanup — don't
+  assume. This instruction was itself validated this way: see Vault,
+  ArgoCD, nginx-gateway-fabric, and Longhorn's compacted entries as the
+  worked examples.
+
+## Vault OIDC setup (reference pattern)
+
+Every private-gateway app wiring Vault OIDC login follows this pattern
+(see the standing instruction above). Reference implementation: ArgoCD
+(`infrastructure/argocd/values.yaml`'s `configs.cm.oidc.config` +
+`configs.rbac`).
+
+App-side config:
+- Public (non-confidential) OIDC client — no client secret.
+- `enablePKCEAuthentication: true` (or equivalent) must be set
+  explicitly — it is not inferred just because no client secret is
+  configured.
+- `issuer` points at
+  `https://vault.int.midugh.fr/v1/identity/oidc/provider/default`.
+- RBAC/authz maps a Vault identity group (via the `groups` claim) to
+  the app's own admin role.
+
+Vault-side manual setup (one-time per app, against the Vault pod — not
+tracked by this repo):
+1. `vault write identity/oidc/key/<app> allowed_client_ids="*"
+   verification_ttl="2h" rotation_period="1h" algorithm="RS256"`
+2. `vault write identity/group name="admin" policies="admin"` (reuse the
+   existing group if already created)
+3. `vault write identity/oidc/scope/groups description="Vault group
+   membership" template='{"groups": {{identity.entity.groups.names}}}'`
+   (reuse if already created)
+4. `vault write identity/oidc/assignment/<app>-admins
+   group_ids=<admin group id>`
+5. `vault write identity/oidc/client/<app>
+   redirect_uris="<app's callback URLs>" assignments="<app>-admins"
+   key="<app>" id_token_ttl="30m" access_token_ttl="1h"`
+6. `identity/oidc/config issuer` must already be set to
+   `https://vault.int.midugh.fr/v1/identity/oidc` (shared, one-time).
+7. `identity/oidc/provider/default` must already exist with
+   `allowed_client_ids="*" scopes_supported="groups"` (shared,
+   one-time) — do **not** create a new named provider per app; a bare
+   `identity/oidc/client` alone only gets Vault's legacy
+   implicit-flow-only discovery document, which silently fails against
+   OIDC clients expecting code+PKCE.
 
 ## ArgoCD / cluster infrastructure (app of apps)
 
@@ -447,6 +507,19 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
 
 ## Progress
 
+### Deployed applications
+
+Fully deployed and confirmed working. Implementation-history bullets for
+these apps under Progress below have been compacted per the standing
+instruction above.
+
+| app | namespace | notes |
+| --- | --------- | ----- |
+| vault | vault-system | Single-replica Vault CE, Longhorn-backed storage; UI/API at `vault.int.midugh.fr`. Starts sealed/uninitialized after a fresh sync — `vault operator init`/`unseal` is a manual, one-time step. |
+| argocd | argocd | Self-managed via its own Helm chart; UI at `argocd.int.midugh.fr`, Vault OIDC login (see "Vault OIDC setup (reference pattern)" above) with `admin` Vault group mapped to `role:admin`. |
+| nginx-gateway-fabric | gateway-system | `private-gateway`/`public-gateway`, TLS via cert-manager gateway-shim (`*.int.midugh.fr` / `*.midugh.fr`), NodePorts forwarded from `cluster-router` haproxy. |
+| longhorn | longhorn-system | UI at `longhorn.int.midugh.fr` through `private-gateway`; deliberately left unauthenticated (see standing instructions). |
+
 - `infrastructure/metrics-server.yaml` added (case 1: single file, inline
   `helm.values`) deploying the upstream `kubernetes-sigs/metrics-server`
   Helm chart (classic index repo
@@ -472,41 +545,17 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   Kubernetes API client the moment DNS/clients start hitting the new
   address with a cert that doesn't list it. README's Published ports
   table updated accordingly.
-- `infrastructure/kustomization.yaml` created as the app-of-apps root
-  (empty `resources: []` for now — the app-of-apps Application itself is
-  not yet deployed; see the section above).
+- `infrastructure/kustomization.yaml` created as the app-of-apps root.
 - ArgoCD installed manually into the `argocd` namespace on the cluster.
-- `infrastructure/argocd/application.yaml` + `values.yaml` added (ArgoCD
-  self-managing itself via the upstream Helm chart, see the section
-  above) and wired into `infrastructure/kustomization.yaml`.
-- `infrastructure/bootstrap.yaml` added — the app-of-apps Application
-  pointing at `infrastructure/`, auto-sync enabled — and listed in
-  `infrastructure/kustomization.yaml` so it self-manages once live. Not
-  yet applied to the cluster; `kubectl apply -f infrastructure/bootstrap.yaml`
-  is the next (one-time, manual) step.
-- `infrastructure/nginx-gateway-fabric/` added (`application.yaml` +
-  `values.yaml`, wired into `infrastructure/kustomization.yaml`) — NGINX
-  Gateway Fabric with `private-gateway`/`public-gateway` NodePort
-  Gateways (30080/31080, http only — TLS not yet implemented, see the
-  section above) plus matching `cluster-router` haproxy bindings on
-  `192.168.1.161`/`.162`.
-- `infrastructure/gateway-api-crds.yaml` added as a sync-wave-ordered
-  prerequisite for `nginx-gateway-fabric` (the upstream Gateway API CRDs
-  it needs, not bundled in NGF's own chart — see the section above);
-  without it `nginx-gateway-fabric`'s first sync failed outright
-  (`could not find the requested resource` for
-  `gateway.networking.k8s.io/v1`). Also fixed both this app's and
-  `infrastructure/argocd/`'s OCI Helm `repoURL` format — ArgoCD needs it
-  without the `oci://` prefix and without the chart name appended (that
-  combination was initially wrong on `nginx-gateway-fabric`, causing a
-  403 on sync), and switched `argocd` from its classic index-based Helm
-  repo to its OCI chart source since it publishes to both. Verified live:
-  both `argocd` and `nginx-gateway-fabric` now sync cleanly once the
-  Gateway API CRDs and the `repoURL` fixes landed.
-- `infrastructure/argocd/values.yaml` gained an `HTTPRoute` (via
-  `extraObjects`) exposing the ArgoCD UI at `argocd.int.midugh.fr` through
-  `private-gateway`, http only — the first real route proving out the
-  gateway setup end-to-end.
+- **`argocd`** — deployed, see Deployed applications table; self-managing
+  itself via its own Helm chart (see the ArgoCD section above). OCI Helm
+  source (`ghcr.io/argoproj/argo-helm`).
+- `infrastructure/bootstrap.yaml` (the app-of-apps Application, see the
+  ArgoCD section above) is applied and reconciling `infrastructure/`.
+- **`nginx-gateway-fabric`** — deployed, see Deployed applications table.
+  `infrastructure/gateway-api-crds.yaml` is a required, sync-wave-ordered
+  prerequisite (the upstream Gateway API CRDs, not bundled in NGF's own
+  chart — see the nginx-gateway-fabric section above).
 - `cluster-router` NixOS configuration implemented under
   `nix/hosts/cluster-router`, covering: vlan-tagged interfaces, ip
   forwarding, nftables firewall, kea DHCP server for the infra vlan, a
@@ -568,32 +617,10 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   fully removed (not just disabled) in favor of dnsmasq, which has native
   PXE support more in line with a home-lab-scale setup — see README's
   "Technical stack" section.
-- `infrastructure/vault/` added (case 2: subfolder, `application.yaml` +
-  `values.yaml` — 4 overridden values crosses the inline-values
-  threshold) deploying HashiCorp Vault Community Edition via its upstream
-  classic index Helm repo (`https://helm.releases.hashicorp.com` — Vault
-  has no OCI chart, unlike `argocd`/`nginx-gateway-fabric`), pinned
-  `targetRevision: 0.34.1` (app version 2.0.4), into the `vault-system`
-  namespace. Single replica standalone mode (the chart's own default —
-  `server.ha.enabled` stays `false`), `server.dataStorage.size: 8Gi` and
-  `server.dataStorage.storageClass: longhorn` (explicit rather than
-  relying on Longhorn being the cluster's implicit default
-  StorageClass), `injector.enabled: false` (no vault-agent sidecar
-  injection needed for this single-instance use case). Wired into
-  `infrastructure/kustomization.yaml`. Vault starts sealed and
-  uninitialized after first sync — `vault operator init` /
-  `vault operator unseal` against the pod is a manual, one-time step, not
-  managed by this repo.
-- `infrastructure/vault/values.yaml` gained an `HTTPRoute` exposing the
-  Vault UI/API at `vault.int.midugh.fr` through `private-gateway`, http
-  only. Unlike `argocd`/`nginx-gateway-fabric`, the Vault chart has no
-  `extraObjects` values key at all — it ships its own built-in
-  `server.httproute` template
-  (`templates/server-httproute.yaml`) instead, so the route is configured
-  via `server.httproute.enabled`/`hostnames`/`parentRefs` rather than a
-  hand-written manifest; the chart fills in the backendRef (its own
-  `vault` Service, port from `server.service.port`) and the default
-  `PathPrefix: /` match itself.
+- **`vault`** — deployed, see Deployed applications table. Case 2
+  (subfolder, `application.yaml` + `values.yaml`), classic index Helm
+  repo (no OCI chart exists for it, unlike `argocd`/
+  `nginx-gateway-fabric`), pinned `targetRevision: 0.34.1`.
 - `infrastructure/external-secrets/` added (case 3: subfolder,
   `application.yaml` + `values.yaml` + `kustomization.yaml` listing an
   extra plain manifest) deploying External Secrets Operator (ESO) via its
@@ -682,19 +709,8 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
   `metadata.annotations`). Fixed; confirmed live afterwards (`Certificate`
   objects appeared, ACME orders/challenges created, Cloudflare DNS-01
   records written).
-- `infrastructure/argocd/values.yaml` and `infrastructure/vault/values.yaml`'s
-  `HTTPRoute`s were switched from `sectionName: http` to
-  `sectionName: https` on `private-gateway` (TLS terminates at the
-  gateway, so each route's backend stays plain HTTP either way). Standing
-  instruction added above: every `HTTPRoute` binds to a Gateway's `https`
-  listener by default from now on, unless told otherwise.
-- `infrastructure/longhorn/values.yaml` gained the chart's built-in
-  `httproute` block (top-level key, a sibling of `ingress` — not nested
-  under it, despite the chart also having an `ingress.httproute`-shaped
-  README section that could mislead at a glance) exposing the Longhorn UI
-  at `longhorn.int.midugh.fr` through `private-gateway`'s `https`
-  listener. No `kustomization.yaml`/extra manifests needed — this stays
-  case 2 (values-only subfolder), same shape as before.
+- **`longhorn`** — deployed, see Deployed applications table. Case 2
+  (values-only subfolder).
 - **`charts/ddclient`** added — no suitable upstream chart exists (the
   only community option, TrueCharts, is TrueNAS-SCALE-specific and pulls
   in their opinionated `common` library chart), so this chart was
@@ -769,107 +785,10 @@ what's bootstrapped manually) is managed declaratively via ArgoCD using an
     (`charts/ddclient/templates/configmap.yaml`). Any future chart/config
     needing a secret value from an env var in ddclient's config should
     use this same `_env` suffix convention, not `$ENV{...}` interpolation.
-- `infrastructure/argocd/values.yaml` gained `configs.cm.oidc.config` +
-  `configs.rbac` wiring ArgoCD's native OIDC login against Vault's own
-  OIDC identity provider (`identity/oidc`), not Dex and not an external
-  IdP. **Deliberately configured as a public (non-confidential) OIDC
-  client** — no `clientSecret` key is set — so no client secret ever
-  needs to exist or be synced via ESO/Vault KV. **`oidc.config` must also
-  set `enablePKCEAuthentication: true` explicitly** — ArgoCD does *not*
-  turn on PKCE automatically just because no client secret is
-  configured (an earlier assumption here that was wrong); without this
-  flag ArgoCD's authorization_code-flow authorize request omits
-  `code_challenge`/`code_challenge_method` entirely, and Vault (whose
-  `argocd` client is `client_type=public`) rejects it with
-  `invalid_request: PKCE is required for public clients` — confirmed
-  live in `argocd-server`'s logs. RBAC (`configs.rbac.policy.csv: "g,
-  admin, role:admin"` +
-  `configs.rbac.scopes: "[groups]"`) maps Vault identity group `admin` to
-  ArgoCD's built-in `role:admin`, so any Vault user in that group becomes
-  an ArgoCD admin automatically on login — no separate ArgoCD-side user
-  management.
-  - The corresponding Vault-side setup is a manual, one-time step against
-    the Vault pod (same category as `vault operator init`/`unseal`, the
-    ESO Kubernetes-auth role, and the cert-manager/ddclient KV writes
-    already noted above) — not tracked by this repo:
-    1. `vault write identity/oidc/key/argocd allowed_client_ids="*"
-       verification_ttl="2h" rotation_period="1h" algorithm="RS256"` —
-       the signing key Vault uses to issue ID tokens for this client.
-    2. `vault write identity/group name="admin" policies="admin"` —
-       create (or confirm) the Vault identity group named exactly
-       `admin`, carrying the `admin` policy, with every user that should
-       get ArgoCD admin access added as a member (directly via
-       `member_entity_ids`, or via an external-auth group alias if admin
-       access flows from an upstream auth method). The group's **name**
-       is what ArgoCD's RBAC `policy.csv` matches on via the `groups`
-       scope/claim, not the policy name itself — they happen to both be
-       `admin` here by deliberate 1:1 convention, but it's the group name
-       that's load-bearing.
-    3. `vault write identity/oidc/scope/groups description="Vault group
-       membership" template='{"groups":
-       {{identity.entity.groups.names}}}'` — the `groups` scope ArgoCD
-       requests, so the ID token actually carries group membership as a
-       claim.
-    4. `vault write identity/oidc/assignment/argocd-admins group_ids=<id
-       of the "admin" group>` — the assignment restricting who is allowed
-       to authenticate against this client at all (distinct from, and in
-       addition to, the groups-claim/RBAC mapping above).
-    5. `vault write identity/oidc/client/argocd redirect_uris="https://argocd.int.midugh.fr/auth/callback,https://argocd.int.midugh.fr/pkce/callback"
-       assignments="argocd-admins" key="argocd" id_token_ttl="30m"
-       access_token_ttl="1h"` — note this intentionally omits
-       `client_type` (defaults to `confidential` in Vault, but ArgoCD
-       simply never sends a secret back since none is configured on its
-       side — PKCE covers the public-client flow) — revisit if Vault
-       ever enforces `client_type=public` strictly on its own side.
-    6. `vault write identity/oidc/config issuer="https://vault.int.midugh.fr/v1/identity/oidc"`
-       (if not already set) — must be reachable both by end-user browsers
-       and by argocd-server itself server-side for the token/userinfo
-       exchange; `vault.int.midugh.fr` through `private-gateway` already
-       satisfies both.
-    7. **`vault write identity/oidc/provider/default
-       allowed_client_ids="*" scopes_supported="groups"`** — a named
-       `identity/oidc/provider` object, **required in addition to**
-       steps 1-6 above; an `identity/oidc/client` on its own only gets
-       the legacy/default discovery document at the bare
-       `identity/oidc/.well-known/openid-configuration` path, which only
-       advertises `response_types_supported: ["id_token"]` (implicit
-       flow, no `token_endpoint`/`userinfo_endpoint`, no PKCE) — ArgoCD
-       correctly detects this and falls back to implicit flow, which
-       silently fails against Vault's implementation of it (user gets
-       bounced back to the ArgoCD login page with no error in either
-       ArgoCD's or Vault's logs). A named provider's discovery document
-       instead lives at `identity/oidc/provider/<name>/.well-known/
-       openid-configuration` and correctly advertises
-       `response_types_supported: ["code"]`, `grant_types_supported:
-       ["authorization_code"]`, and `code_challenge_methods_supported:
-       ["plain", "S256"]` (PKCE) — the flow ArgoCD's public-client OIDC
-       setup actually expects. `scopes_supported` must reference the
-       name of an already-created `identity/oidc/scope` object (step 3's
-       `groups` scope) — passing a scope name before that scope exists
-       fails with Vault rejecting the write.
-       **This provider is named `default` and shared across every
-       private-gateway app**, not one-per-app — `allowed_client_ids="*"`
-       so any future app's OIDC client works against it without having
-       to edit this provider each time a new app is added. Every app's
-       own `oidc.config.issuer` (or equivalent) must point at
-       `https://vault.int.midugh.fr/v1/identity/oidc/provider/default`,
-       not the bare `identity/oidc` path from step 6 — the base
-       `identity/oidc/config issuer` (step 6) still matters (it's what
-       Vault's named-provider discovery document derives its own full
-       URLs from), but each app's own `issuer` config value is this
-       shared provider-specific one. New apps needing Vault OIDC per the
-       standing instruction above should reuse `provider/default` rather
-       than creating their own named provider.
-  - The named `identity/oidc/provider/default` object (step 7) was the
-    missing piece — steps 1-6 alone are not sufficient for ArgoCD, since
-    they only produce the implicit-flow-only legacy discovery document.
-    With step 7 in place, the provider's discovery document is confirmed
-    correct (`response_types_supported: ["code"]`,
-    `code_challenge_methods_supported`, `scopes_supported: ["openid",
-    "groups"]`) and, combined with `enablePKCEAuthentication: true` in
-    `oidc.config` (see above), **login flow + RBAC admin mapping are now
-    live-verified end-to-end**: a Vault user in the `admin` group logs
-    into ArgoCD via Vault OIDC and lands with `role:admin`.
+- ArgoCD's Vault OIDC login (`configs.cm.oidc.config` + `configs.rbac` in
+  `infrastructure/argocd/values.yaml`) is live-verified end-to-end — see
+  "Vault OIDC setup (reference pattern)" above, for which this is the
+  reference implementation.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
