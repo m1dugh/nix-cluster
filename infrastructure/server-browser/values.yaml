@@ -1,7 +1,8 @@
-# xpra left intentionally passwordless (no native OIDC support in this
-# chart; explicit exception, same category as Vault/Longhorn — see
-# AGENTS.md's private-gateway auth standing instruction).
-xpra:
+# No native OIDC support in this chart; unauthenticated at the gateway
+# (explicit exception, same category as Vault/Longhorn — see AGENTS.md's
+# private-gateway auth standing instruction). KasmVNC itself still has
+# its own password (kasmvnc.auth).
+kasmvnc:
   enabled: true
   httpRoute:
     enabled: true
