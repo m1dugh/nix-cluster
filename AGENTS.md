@@ -730,7 +730,7 @@ instruction above.
 - `infrastructure/server-browser/` added (case 2: values-only subfolder)
   deploying `github.com/m1dugh/server-browser`'s Helm chart (OCI repo
   `ghcr.io/m1dugh/server-browser/charts`, chart `server-browser`, pinned
-  `targetRevision: 0.1.6`), into a dedicated `chromium` namespace. This
+  `targetRevision: 0.1.7`), into a dedicated `chromium` namespace. This
   chart has no native OIDC support — only a static KasmVNC password — so
   per explicit decision it is left **unauthenticated at the gateway**
   (same exception category as Vault/Longhorn), rather than adding a
@@ -743,6 +743,9 @@ instruction above.
     cluster rather than ClusterIP-only, for external agent access).
   - `persistence.enabled: true` (8Gi, default `longhorn` StorageClass) so
     the chromium profile/session survives pod restarts.
+  - The chart's images are pinned to specific tags (never `latest`):
+    with `imagePullPolicy: IfNotPresent`, a mutable tag can be served
+    from a stale node-cached image.
 
 ### Netboot (RPi4 -> Talos) — PARKED, not removed
 
