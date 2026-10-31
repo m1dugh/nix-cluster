@@ -8,7 +8,7 @@ spec:
   sources:
     - repoURL: ghcr.io/m1dugh/server-browser/charts
       chart: server-browser
-      targetRevision: 0.1.9
+      targetRevision: 0.1.10
       helm:
         valueFiles:
           - $values/infrastructure/server-browser/values.yaml

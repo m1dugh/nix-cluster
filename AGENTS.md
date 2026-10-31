@@ -730,7 +730,7 @@ instruction above.
 - `infrastructure/server-browser/` added (case 2: values-only subfolder)
   deploying `github.com/m1dugh/server-browser`'s Helm chart (OCI repo
   `ghcr.io/m1dugh/server-browser/charts`, chart `server-browser`, pinned
-  `targetRevision: 0.1.9`), into a dedicated `chromium` namespace. An
+  `targetRevision: 0.1.10`), into a dedicated `chromium` namespace. An
   nginx sidecar in the pod fronts KasmVNC and the CDP debugger and injects
   KasmVNC's internal credential, so no login is needed. Per explicit
   decision the app is left **unauthenticated at the gateway** (same
@@ -743,6 +743,9 @@ instruction above.
     cluster rather than ClusterIP-only, for external agent access).
   - `persistence.enabled: true` (8Gi, default `longhorn` StorageClass) so
     the chromium profile/session survives pod restarts.
+  - The chart deliberately deactivates KasmVNC's unused side services
+    (audio, audio input, gamepad, printer, webcam, smartcard, uploads) to
+    save resources and network exposure.
   - The chart's images are pinned to specific tags (never `latest`):
     with `imagePullPolicy: IfNotPresent`, a mutable tag can be served
     from a stale node-cached image.
