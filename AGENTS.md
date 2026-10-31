@@ -730,11 +730,11 @@ instruction above.
 - `infrastructure/server-browser/` added (case 2: values-only subfolder)
   deploying `github.com/m1dugh/server-browser`'s Helm chart (OCI repo
   `ghcr.io/m1dugh/server-browser/charts`, chart `server-browser`, pinned
-  `targetRevision: 0.1.8`), into a dedicated `chromium` namespace. This
-  chart has no native OIDC support — only a static KasmVNC password — so
-  per explicit decision it is left **unauthenticated at the gateway**
-  (same exception category as Vault/Longhorn), rather than adding a
-  Vault-sourced password.
+  `targetRevision: 0.1.9`), into a dedicated `chromium` namespace. An
+  nginx sidecar in the pod fronts KasmVNC and the CDP debugger and injects
+  KasmVNC's internal credential, so no login is needed. Per explicit
+  decision the app is left **unauthenticated at the gateway** (same
+  exception category as Vault/Longhorn).
   - `kasmvnc.enabled: true` with its own `HTTPRoute` on `private-gateway`
     (`server-browser.int.midugh.fr`) for the interactive browser viewer.
   - `chromium.debug.enabled: true` with its own `HTTPRoute` on
