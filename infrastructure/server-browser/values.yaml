@@ -1,7 +1,7 @@
 # No native OIDC support in this chart; unauthenticated at the gateway
 # (explicit exception, same category as Vault/Longhorn — see AGENTS.md's
-# private-gateway auth standing instruction). KasmVNC itself still has
-# its own password (kasmvnc.auth).
+# private-gateway auth standing instruction). The chart's nginx sidecar
+# injects KasmVNC's internal credential, so no login is needed.
 kasmvnc:
   enabled: true
   httpRoute:
@@ -12,6 +12,14 @@ kasmvnc:
     hostname: server-browser.int.midugh.fr
 
 chromium:
+  # Sized for a few tabs on the RPi4 nodes (8Gi); the pod idles around 580Mi.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
   debug:
     enabled: true
     httpRoute:
